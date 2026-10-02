@@ -1,0 +1,55 @@
+site_name: draftpool
+# Pages serves the site under /draftpool/; without this the 404 page's styles
+# and the sitemap point at the wrong place
+site_url: https://homiak.github.io/draftpool/
+repo_url: https://github.com/homiak/draftpool
+repo_name: homiak/draftpool
+site_description: Local iterative image generation on Apple Silicon — cheap drafts first, finals only for the keepers.
+
+# The site is the user docs as they are in the repo; scripts/docs_site.py
+# makes README.md the home page and unlinks what is not published here.
+docs_dir: docs
+exclude_docs: |
+  decisions/
+hooks:
+  - scripts/docs_site.py
+
+nav:
+  - Home: index.md
+  - Setup: SETUP.md
+  - Guide: GUIDE.md
+  - Deep dive: DEEP-DIVE.md
+  - Adding a model: ADDING-A-MODEL.md
+  - LoRA recommendations: LORA-RECOMMENDATIONS.md
+  - Credits: CREDITS.md
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: {icon: material/weather-sunny, name: Light mode}
+  features:
+    - navigation.sections
+    - navigation.top
+    - toc.follow
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+      # GitHub's anchors, so links that work on GitHub work here too
+      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+validation:
+  links:
+    anchors: warn

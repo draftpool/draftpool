@@ -1,0 +1,19 @@
+data/
+__pycache__/
+.venv/
+*.pyc
+.pytest_cache/
+tools/
+civitai.key
+*.key
+.env
+
+# macOS Finder metadata
+.DS_Store
+
+# built docs site (mkdocs build)
+site/
+runs/
+
+# add_model.py's renders
+research/
