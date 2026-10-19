@@ -79,6 +79,18 @@ uv run uvicorn app.main:app --port 8500
 
 and open http://127.0.0.1:8500.
 
+Nothing renders without Draw Things, so every time you start draftpool, open
+Draw Things too and check its **API Server** is still on.
+
+The prompt help needs Ollama running: **Enrich**, **From image…**,
+**Finalize+**, **Improve with LLM** and Publish's *from image* buttons. Without
+it you can still render your own prompt. `setup.sh` starts Ollama as a
+background service; if it isn't running, start it with
+`brew services start ollama`.
+
+The page header shows **Draw Things up · Ollama up** once everything is
+connected.
+
 The community models from Civitai, the image editor, the video model and
 troubleshooting are covered in the [full setup guide](docs/SETUP.md).
 
