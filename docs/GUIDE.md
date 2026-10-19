@@ -100,7 +100,8 @@ don't overwrite them.
 
 Some models can use a LoRA that makes them several times faster. These are
 shown as a **⚡** switch on the model's chip, and as a tick in the **LoRA**
-column of the **⚙** dialog. They start switched on.
+column of the **⚙** dialog. They start switched on. Qwen Edit has no chip, so
+its Lightning LoRA is switched in the **⚙** dialog only.
 
 | model | LoRA | with it | without it |
 |---|---|---|---|
@@ -176,6 +177,15 @@ them.
 Keep the rectangle under about 400px on its longest side for full detail;
 larger ones come back a little softer.
 
+**strength** sets how far the rectangle may move from what is there: **0.7**
+(the default) changes it, **0.8** replaces it entirely, **0.65** changes it
+only partly.
+
+**Reference image…** is for when words don't get you the thing you want. Pick
+another picture, drag a rectangle around the part to use, and its pixels are
+pasted into your rectangle and repainted to blend in. The strength drops to
+0.55 so the pasted pixels survive.
+
 ### With a rectangle: add something new
 
 Choose **add something new** to place a new object, like a dog on the grass or
@@ -200,10 +210,11 @@ Anything you don't mention stays the same. To get good results:
   "nicer". Don't use negatives: write "remove the sunglasses", not "without
   sunglasses".
 
-With the Lightning LoRA on, colour changes and additions work well, but
-**replacing** one thing with another can leave the old one showing. For a
-replacement, turn Lightning off (about five minutes instead of 1.5), or do it
-in two edits: remove the old thing, then add the new one.
+With the Lightning LoRA on, colour changes work well, and an addition can
+look slightly pasted on. **Replacing** one thing with another can leave the
+old one showing. For a replacement, untick Lightning in the **⚙** dialog
+(about five minutes instead of 1.5), or do it in two edits: remove the old
+thing, then add the new one.
 
 ### Without a rectangle: another take on it
 
@@ -217,6 +228,17 @@ Rewrites your text in the form the chosen route works best with. It never
 starts a render: you see the rewrite, can edit it, and press Apply. For
 instructions, pick a vision model such as **qwen3-vl:8b** so it can see which
 object you mean.
+
+### The other controls
+
+- **with** picks the model. **Change what's there** and **another take on it**
+  can use any installed model, not only the one that made the picture: an
+  anime model for a character in a photo, say. Instructions and additions
+  always go to Qwen Edit.
+- **steps** starts at the chosen model's own count. Too few leaves the edited
+  area soft and washed out. Qwen Edit needs 4 with Lightning and gains nothing
+  from more; without it, about 8 for a colour change, 16 to replace something
+  and 24 or more to add something.
 
 More on what edits can and can't do:
 [Deep dive](DEEP-DIVE.md#edit-what-it-can-and-cannot-change).

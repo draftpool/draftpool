@@ -11,6 +11,7 @@ site_description: Local iterative image generation on Apple Silicon — cheap dr
 docs_dir: docs
 exclude_docs: |
   decisions/
+  LORA-RECOMMENDATIONS.md
 hooks:
   - scripts/docs_site.py
 
@@ -20,7 +21,6 @@ nav:
   - Guide: GUIDE.md
   - Deep dive: DEEP-DIVE.md
   - Adding a model: ADDING-A-MODEL.md
-  - LoRA recommendations: LORA-RECOMMENDATIONS.md
   - Credits: CREDITS.md
 
 theme:

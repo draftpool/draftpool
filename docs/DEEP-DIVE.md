@@ -15,8 +15,8 @@ change. It runs at a fixed strength of 0.8. Lower strengths were tried and
 changed nothing you asked for (a dress colour, the time of day, the style), so
 there is no slider.
 
-**A rectangle edit can't add something new.** Repainting keeps what is already
-in the rectangle, so asking for a dog on empty grass gives you grass. Use **add
+**Change what's there can't add something new.** Repainting keeps what is
+already in the rectangle, so asking for a dog on empty grass gives you grass. Use **add
 something new** instead, which sends the rectangle to the instruction editor.
 
 **Everything outside your rectangle is left exactly as it was**, pixel for
@@ -56,11 +56,14 @@ Ways around it:
 - **Upscale** or **2x fast** the edited result to get the size back.
 - **Use a rectangle.** Only the rectangle is repainted, so the rest of the image
   keeps its full resolution.
-- **Tick "repaint at N×N instead"** in the Edit dialog to edit at the image's
-  full size. Slower, and the dialog shows how much. Not available for Qwen
-  Edit, where it would take tens of minutes.
+- **Use another take on it and tick "repaint at N×N instead"** to edit at the
+  image's full size. Slower, and the dialog shows how much. An edit by
+  instruction doesn't offer it: Qwen Edit at full size would take tens of
+  minutes.
 
-Not affected: **Fix faces** works on the faces alone, at any image size. **More
+Not affected: **Fix faces** works on the faces alone, so the image keeps its
+size. It skips a face that is already large (common on an upscale), because
+repainting it would add nothing, and says so. **More
 like this** makes new images. **Animate** always renders at about 832×480.
 
 ## Upscaling with a different model

@@ -62,14 +62,8 @@ These are imported by hand only:
 | One obsession v24 | https://civitai.com/models/1318945?modelVersionId=3218603 |
 | JANKU Illustrious v7.77 | https://civitai.com/models/1277670?modelVersionId=2786084 |
 | RIN Flanime Illustrious v5.0 | https://civitai.com/models/1544647?modelVersionId=3262295 |
-| PerfectDeliberate-**Anime** v5.0_A | https://civitai.com/models/111274?modelVersionId=2925672 |
+| PerfectDeliberate-Anime v5.0_A | https://civitai.com/models/111274?modelVersionId=2925672 |
 | Juggernaut XL Ragnarok | https://civitai.com/models/133005?modelVersionId=1759168 |
-
-⚠️ **PerfectDeliberate-Anime is not the same as PerfectDeliberate.** The same
-author publishes both with the same version numbers. You want
-`perfectdeliberate_v50A.safetensors` from model **111274**, not
-`perfectdeliberate_v50.safetensors` from model 24350, which a search shows
-first.
 
 The app's settings were tested with these exact versions. A newer version will
 probably work too. If you install a different one, update `civitai_version_id`

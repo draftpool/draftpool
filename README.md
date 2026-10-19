@@ -103,8 +103,8 @@ upgrades itself on the next start. [More on updating →](docs/SETUP.md#updating
 - [Deep dive](docs/DEEP-DIVE.md): edge cases and workarounds.
 - [Setup](docs/SETUP.md): full install, Civitai models, data, updating,
   troubleshooting.
-- [Adding a model](docs/ADDING-A-MODEL.md) and
-  [LoRA recommendations](docs/LORA-RECOMMENDATIONS.md).
+- [Adding a model](docs/ADDING-A-MODEL.md): checking and setting up a model
+  the app doesn't include.
 - [Credits](docs/CREDITS.md): the apps and models this is built on.
 
 For developers: run the tests with `uv run pytest`. Code comments sometimes

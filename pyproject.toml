@@ -1,6 +1,6 @@
 [project]
 name = "draftpool"
-version = "1.0.0"
+version = "1.0.1"
 description = "Local iterative image generation: Ollama prompt enrichment against a pool of Draw Things drafts, culled to keepers and finalized/upscaled."
 license = "MIT"
 requires-python = ">=3.12"
