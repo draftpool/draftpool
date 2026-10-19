@@ -63,7 +63,6 @@ These are imported by hand only:
 | JANKU Illustrious v7.77 | https://civitai.com/models/1277670?modelVersionId=2786084 |
 | RIN Flanime Illustrious v5.0 | https://civitai.com/models/1544647?modelVersionId=3262295 |
 | PerfectDeliberate-Anime v5.0_A | https://civitai.com/models/111274?modelVersionId=2925672 |
-| Juggernaut XL Ragnarok | https://civitai.com/models/133005?modelVersionId=1759168 |
 
 The app's settings were tested with these exact versions. A newer version will
 probably work too. If you install a different one, update `civitai_version_id`
@@ -71,8 +70,8 @@ for that model in `config/models.yaml`, or a published post will credit the
 wrong version.
 
 Everything else (FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo, Krea 2 Turbo,
-Qwen Image and Qwen Image Edit) comes from Draw Things' own catalogue and needs
-no Civitai account.
+Juggernaut XL Ragnarok, Qwen Image and Qwen Image Edit) comes from Draw Things'
+own catalogue and needs no Civitai account.
 
 To add a model the app doesn't include, see [Adding a model](ADDING-A-MODEL.md).
 
@@ -191,13 +190,13 @@ correctly and restart.
 The database upgrades itself on the first start of a new version, so there's
 no separate migration step.
 
-| | replaced by an update? | what to do |
+| | comes with an update? | what to do |
 |---|---|---|
 | `app/`, `static/`, `scripts/`, `tests/` | yes | nothing |
-| `.venv/` | yes | `setup.sh` rebuilds it |
-| `tools/realesrgan` | yes | keep it, or let `setup.sh` download it again |
-| `data/` | **no** | keep it, see [Where your data lives](#where-your-data-lives) |
 | `config/models.yaml` | yes, but you may have edited it | keep a copy of your changes, see below |
+| `.venv/` | no | `setup.sh` rebuilds it |
+| `tools/realesrgan` | no | `setup.sh` downloads it again if it's missing |
+| `data/` | **no** | keep it, see [Where your data lives](#where-your-data-lives) |
 | `.env` | no | keep it |
 
 **If you cloned the repository:**
@@ -251,8 +250,6 @@ chip.
 
 ## Troubleshooting
 
-- **`setup.sh` stops with an architecture error**: the app needs an Apple
-  Silicon Mac.
 - **Every `uv` command fails with `Abort trap: 6` or `Library not loaded`**:
   the `.venv` folder was copied from elsewhere. Run `rm -rf .venv && uv sync`
   (or just `scripts/setup.sh`).
@@ -273,8 +270,12 @@ chip.
   different data folder. Check the `data directory:` line printed at startup
   and set `DRAFTPOOL_DATA_DIR` correctly. See
   [Where your data lives](#where-your-data-lives).
-- **Draw Things connection refused**: the API Server setting in Draw Things
-  switched itself off, often after an app update. Turn it back on.
+- **The header says Draw Things down**, or the connection is refused: Draw
+  Things isn't open, or its API Server setting switched itself off, often
+  after an app update. Open it and turn the setting back on.
+- **The header says Ollama down**: start it with `brew services start ollama`.
+  Enrich, From image…, Finalize+ and Improve with LLM need it; your own prompt
+  still renders without it.
 - **"no reply within 300s" from the LLM**: the model took too long, often
   because it was still loading. Press **Retry**. If it keeps happening, choose
   a smaller model, or raise `llm.request_timeout` in `config/models.yaml`.

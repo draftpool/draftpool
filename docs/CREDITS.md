@@ -24,6 +24,8 @@ them (see the [README](../README.md#license)).
 - [Z-Image Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo): Alibaba
   Tongyi-MAI.
 - [Krea 2 Turbo](https://www.krea.ai/models/krea-2-turbo): Krea AI.
+- [Juggernaut XL Ragnarok](https://civitai.com/models/133005?modelVersionId=1759168):
+  KandooAI / RunDiffusion.
 - [Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) and
   [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511):
   Alibaba Qwen team. The editor behind Edit and Combine.
@@ -45,7 +47,6 @@ them (see the [README](../README.md#license)).
 - [JANKU Illustrious XL v7.77](https://civitai.com/models/1277670?modelVersionId=2786084): janxd.
 - [RIN Flanime Illustrious v5.0](https://civitai.com/models/1544647?modelVersionId=3262295): Rin_x0.
 - [PerfectDeliberate-Anime v5.0_A](https://civitai.com/models/111274?modelVersionId=2925672): Desync.
-- [Juggernaut XL Ragnarok](https://civitai.com/models/133005?modelVersionId=1759168): KandooAI / RunDiffusion.
 
 **Speed LoRAs**
 - [Qwen-Image-Edit-2511 Lightning](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning): LightX2V.

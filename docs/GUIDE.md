@@ -4,6 +4,23 @@ What each action does, how long it takes, and how to get good results.
 Installation is in [Setup](SETUP.md). Edge cases and workarounds are in
 [Deep dive](DEEP-DIVE.md).
 
+## Making drafts
+
+1. Type what you want to see in the prompt box, in your own words.
+2. Pick one or more models from the chips above the prompt, and a
+   [shape](#shape).
+3. **Enrich prompt** has the LLM write several **prompt variants** from your
+   words (3 by default), which you can edit or drop. Skip it and your prompt is
+   sent as written. **From image…** starts from a picture instead: a vision
+   LLM describes it, and your text steers what it focuses on.
+4. **Generate drafts** renders every prompt on every selected model, with
+   **seeds each** different seeds (2 by default).
+
+Every model gets the same ideas, with the anime models getting them in their
+own [tag wording](#prompting-the-anime-models), so a round also shows you
+which model suits the subject. Drafts are small and quick; take the ones you
+like further with the actions below.
+
 ## What each action does
 
 On a draft or finished image:
@@ -29,10 +46,6 @@ On a draft or finished image:
   [Animate](#animate).
 - **Publish…**: posts the image to Civitai as a private draft. Not available
   on drafts. See [Publish](#publish-to-civitai).
-
-Every installed model appears as a chip above the prompt, and one round of
-drafts can use several models at once. They all get the same prompts, so a
-round also shows you which model suits the subject.
 
 ## How long things take
 
@@ -90,8 +103,7 @@ Upscale start from the draft, so a rougher draft can show through even when the
 draft itself looks fine. If your Faithful images start coming out flatter or
 darker, raise the draft steps again.
 
-Faithful automatically asks for twice the steps of a Finalize, because a
-repaint only uses about half of them. Upscale steps can't be changed.
+Upscale steps can't be changed.
 
 Your changes are saved with your data, not in `config/models.yaml`, so updates
 don't overwrite them.
@@ -428,7 +440,7 @@ and then **Compare ⧉**.
 - **Drag** to pan all panes together; **scroll** to zoom.
 - **1:1** shows real pixels. **match** scales images to the same framing.
   **fit** shows each whole image.
-- Keys: **1**, **m**, **f**, **+** and **−**, and **Esc** to leave.
+- Keys: **1**, **m**, **f**, **+** and **-**, and **Esc** to leave.
 - **show card ⤴** on a pane closes the comparison and takes you to that image.
   **✕** removes a pane without deleting the image.
 

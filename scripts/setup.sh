@@ -67,9 +67,9 @@ The flags are additive and only decide what gets downloaded for you:
                         (civitai.com -> Account settings -> API Keys); none
                         of them is needed to run the app.
 
-Models in Draw Things' own catalogue (FLUX, Krea 2, Juggernaut, Qwen Edit,
-both video models) are never downloaded here -- the app fetches and
-converts those itself. Setup prints their exact names instead.
+Models in Draw Things' own catalogue (FLUX, Z-Image, Krea 2, Juggernaut,
+Qwen Image, Qwen Edit, the video model) are never downloaded here -- the
+app fetches and converts those itself. Setup prints their exact names instead.
 
 Free space is checked against the total before anything downloads, so the run
 stops rather than filling the disk part way through.
@@ -253,8 +253,9 @@ if [ ! -f "$ENV_FILE" ]; then
 #
 DRAFTPOOL_DATA_DIR=${DATA_IN_USE:-$PWD/data}
 
-# Only read by ./scripts/setup.sh --anime-checkpoints, to download the Civitai
-# checkpoints. Make a key at civitai.com -> Account settings -> API Keys.
+# Read by ./scripts/setup.sh --anime-checkpoints, to download the Civitai
+# checkpoints, and by Publish... in the app. Make a key at civitai.com ->
+# Account settings -> API Keys.
 #CIVITAI_TOKEN=
 ENVFILE
   echo "-- wrote .env (gitignored): data directory and Civitai token live there"
@@ -345,7 +346,7 @@ if curl -s --max-time 3 -o /dev/null "http://127.0.0.1:7860/sdapi/v1/options"; t
   echo "-- reachable on port 7860, nothing to do"
 else
   echo "-- not reachable on port 7860, expected until step 1 below is done"
-  echo "   (the toggle persists between launches, so it is a one-time step)"
+  echo "   (it usually stays on, but can switch itself off after an app update)"
 fi
 
 if [ "$DOWNLOAD_LLMS" = "1" ] || [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
@@ -415,7 +416,7 @@ if [ "$DOWNLOAD_LLMS" = "1" ]; then
 fi
 
 if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
-  echo "== Civitai anime checkpoints (~22GB, for import into Draw Things)"
+  echo "== Civitai anime checkpoints (~16GB with their LoRAs, for import into Draw Things)"
   DEST="$HOME/Downloads/draftpool-models"
   mkdir -p "$DEST"
   TOKEN_PARAM=""
@@ -490,14 +491,16 @@ then hides rather than failing on.
 2. Download the models you like inside the app. Supported list, with
    rough on-disk sizes (they vary with the quantisation you pick, and
    the app pulls a few GB of shared text encoders and VAEs alongside):
-     ${B}FLUX.1 [schnell]${N}         ~11GB
+     ${B}Z Image Turbo${N}             ~6GB   (the fastest; a good first one)
      ${B}FLUX.2 [klein] 9B${N}         ~9GB
-     ${B}Krea 2 Turbo${N}             ~12GB
+     ${B}FLUX.1 [schnell]${N}         ~11GB
+     ${B}Krea 2 Turbo${N}             ~13GB
      ${B}Juggernaut XL Ragnarok${N}    ~5GB
+     ${B}Qwen Image 2512${N}          ~21GB  (minutes per image)
    Any subset works: every model upscales its own images, so none of
    these is required by another.
 
-3. Instruct action: ${B}Qwen Image Edit 2511${N} (~19GB), and its
+3. Edit and Combine: ${B}Qwen Image Edit 2511${N} (~21GB), and its
    ${B}Qwen Image Edit 2511 Lightning 4-Step${N} LoRA (~0.8GB), which makes
    every edit about three times faster. Optional: without it edits run
    at 16 steps.
@@ -510,8 +513,8 @@ then hides rather than failing on.
 
 5. The three anime checkpoints below are not in that catalogue (optional
    only if you like the style), so they have to be fetched separately
-   (~22GB), all Danbooru-tagged SDXL models. Take any subset: each generates
-   its own images. Two ways to get them:
+   (~16GB with their LoRAs), all Danbooru-tagged Anima models. Take any
+   subset: each generates its own images. Two ways to get them:
      - ./scripts/setup.sh --anime-checkpoints, which needs CIVITAI_TOKEN
      - open the pages below and download in a browser: your Civitai
        login there is enough, no token needed
@@ -559,5 +562,6 @@ cat <<EOF
                                 # and Animate's Improve with LLM
 
 8. Verify:  uv run python scripts/probe.py
-10. Run:    uv run uvicorn app.main:app --port 8500
+9. Run:     uv run uvicorn app.main:app --port 8500
+   with Draw Things open (API Server on) and Ollama running.
 EOF

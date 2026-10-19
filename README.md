@@ -110,6 +110,8 @@ upgrades itself on the next start. [More on updating →](docs/SETUP.md#updating
 
 ## Documentation
 
+Also as a website: https://homiak.github.io/draftpool/
+
 - [Guide](docs/GUIDE.md): what each action does, how long it takes, and how to
   get good results.
 - [Deep dive](docs/DEEP-DIVE.md): edge cases and workarounds.
