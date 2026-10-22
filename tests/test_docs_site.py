@@ -29,7 +29,7 @@ def test_published_links_are_untouched():
 
 
 def test_license_links_to_the_repository():
-    config = {"repo_url": "https://github.com/homiak/draftpool"}
+    config = {"repo_url": "https://github.com/draftpool/draftpool"}
     assert (on_page_markdown("see [LICENSE](LICENSE).", None, config, None)
-            == "see [LICENSE](https://github.com/homiak/draftpool/blob/main/LICENSE).")
+            == "see [LICENSE](https://github.com/draftpool/draftpool/blob/main/LICENSE).")
     assert rewrite("see [LICENSE](LICENSE).") == "see LICENSE."

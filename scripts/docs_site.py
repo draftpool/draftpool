@@ -62,7 +62,7 @@ def on_files(files, config):
 
 
 def on_page_markdown(markdown, page, config, files):
-    if page.file.src_uri in DESCRIPTIONS:
+    if page and page.file.src_uri in DESCRIPTIONS:
         page.meta.setdefault("description", DESCRIPTIONS[page.file.src_uri])
     # the license is in the repository, not on the site: link to it there
     if config and config.get("repo_url"):

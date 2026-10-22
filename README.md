@@ -56,7 +56,7 @@ everything; 16GB is enough for the smaller models but not the large ones or
 video. Plan on about 60GB of disk for a full set of models.
 
 ```bash
-git clone https://github.com/homiak/draftpool.git
+git clone https://github.com/draftpool/draftpool.git
 cd draftpool
 ./scripts/setup.sh          # tools, Python environment, upscaler
 ./scripts/setup.sh --llms   # also download the two Ollama models (~14GB)
@@ -112,7 +112,7 @@ upgrades itself on the next start. [More on updating →](docs/SETUP.md#updating
 
 ## Documentation
 
-Also as a website: https://homiak.github.io/draftpool/
+Also as a website: https://draftpool.github.io/draftpool/
 
 - [Guide](docs/GUIDE.md): what each action does, how long it takes, and how to
   get good results.

@@ -1,9 +1,9 @@
 site_name: draftpool
 # Pages serves the site under /draftpool/; without this the 404 page's styles
 # and the sitemap point at the wrong place
-site_url: https://homiak.github.io/draftpool/
-repo_url: https://github.com/homiak/draftpool
-repo_name: homiak/draftpool
+site_url: https://draftpool.github.io/draftpool/
+repo_url: https://github.com/draftpool/draftpool
+repo_name: draftpool/draftpool
 # the home page's search-result description; the other pages' are in
 # scripts/docs_site.py
 site_description: Self-hosted image generation for Apple Silicon Macs. Draw Things renders cheap drafts, a local LLM writes the prompts, and only the keepers get finished.
