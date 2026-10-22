@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     # what the site is built from, and what pins the mkdocs version
-    paths: [README.md, docs/**, mkdocs.yml, scripts/docs_site.py,
+    paths: [README.md, docs/**, mkdocs.yml, scripts/docs_site.py, overrides/**,
             pyproject.toml, uv.lock, .github/workflows/docs.yml]
   workflow_dispatch:
 

@@ -4,7 +4,9 @@ site_name: draftpool
 site_url: https://homiak.github.io/draftpool/
 repo_url: https://github.com/homiak/draftpool
 repo_name: homiak/draftpool
-site_description: Local iterative image generation on Apple Silicon — cheap drafts first, finals only for the keepers.
+# the home page's search-result description; the other pages' are in
+# scripts/docs_site.py
+site_description: Self-hosted image generation for Apple Silicon Macs. Draw Things renders cheap drafts, a local LLM writes the prompts, and only the keepers get finished.
 
 # The site is the user docs as they are in the repo; scripts/docs_site.py
 # makes README.md the home page and unlinks what is not published here.
@@ -25,6 +27,8 @@ nav:
 
 theme:
   name: material
+  # link-preview (Open Graph) tags
+  custom_dir: overrides
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
