@@ -21,6 +21,8 @@ own [tag wording](#prompting-the-anime-models), so a round also shows you
 which model suits the subject. Drafts are small and quick; take the ones you
 like further with the actions below.
 
+![Twelve drafts of a fox asleep in the snow, from two photographic and two anime models, with the prompt variant each one came from](images/drafts-grid.jpg)
+
 ## What each action does
 
 On a draft or finished image:
@@ -46,6 +48,12 @@ On a draft or finished image:
   [Animate](#animate).
 - **Publish…**: posts the image to Civitai as a private draft. Not available
   on drafts. See [Publish](#publish-to-civitai).
+
+![Compare showing a draft, its Faithful and its Finalize side by side](images/faithful-vs-finalize.jpg)
+
+Left to right: a draft, its Faithful and its Finalize. The Faithful is the
+draft at full size; the Finalize is a new picture from the same seed, here with
+the fox facing the other way.
 
 ## How long things take
 
@@ -417,6 +425,8 @@ The **show** row above the grid filters what you see: click **drafts**,
 **finals**, a model or a size. Click again to undo. The **⤵** button on a card
 shows only that image's family: where it came from and everything made from it.
 Filtering only hides images; nothing is deleted.
+
+![The grid filtered to one model's images](images/filter-by-model.jpg)
 
 **Review ▶** steps through the images on screen one at a time, each at its real
 size.

@@ -10,6 +10,8 @@ Make a batch of cheap drafts instead, across several prompt variations, models
 and seeds. Keep the ones that work and spend the slow, full-quality passes only
 on those.
 
+![A round in draftpool: one prompt on four models, the LLM's prompt variants, twelve drafts, then More like this, Finalize, Faithful, Compare and the grid filters](docs/images/demo.gif)
+
 ## Why drafts
 
 A prompt says what you want, not what you will get. Ask for a fluffy Persian

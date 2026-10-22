@@ -1,8 +1,7 @@
 {#- Link-preview tags for the docs site (mkdocs.yml theme.custom_dir). The
     description is the page's own, set by scripts/docs_site.py, or the site's.
-    No og:image: there is no picture to show yet, and a summary card without
-    one is what chat apps and X fall back to anyway. The 404 page has no page
-    and gets none. -#}
+    Every page shares one preview picture, docs/images/social.jpg (1200x630,
+    the size the large card wants). The 404 page has no page and gets none. -#}
 {% extends "base.html" %}
 
 {% block extrahead %}
@@ -15,7 +14,12 @@
   <meta property="og:title" content="{{ title }}">
   <meta property="og:description" content="{{ description }}">
   <meta property="og:url" content="{{ page.canonical_url }}">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="{{ config.site_url }}images/social.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="A red fox asleep on a snowy log at dawn, made with draftpool">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ config.site_url }}images/social.jpg">
   <meta name="twitter:title" content="{{ title }}">
   <meta name="twitter:description" content="{{ description }}">
 {%- endif %}
