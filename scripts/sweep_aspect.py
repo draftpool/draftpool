@@ -1,6 +1,6 @@
 """Render every shape the UI offers against a square control, keeping every frame.
 
-    uv run python scripts/sweep_aspect.py --models wai-illustrious,qwen-image
+    uv run python scripts/sweep_aspect.py --models juggernaut-ragnarok,qwen-image
     uv run python scripts/sweep_aspect.py --models all --seeds 1111,2222
 
 What this checks is `aspect_size` in config/models.yaml: each non-square ratio
@@ -214,7 +214,7 @@ def main() -> None:
     # the final's at a fraction of the time. Not on qwen-image: its failure is
     # an empty answer past a long-edge x steps ceiling, so fewer steps would
     # hide exactly what is being checked. Nor where a model duplicates only at
-    # a higher count (rinflanime at 1536/24): lower steps cannot show that.
+    # a higher count (an Illustrious finetune at 1536/24): lower steps cannot show that.
     ap.add_argument("--steps", default="draft",
                     help="'draft', 'final', or a number")
     ap.add_argument("--lora-options", action="store_true",

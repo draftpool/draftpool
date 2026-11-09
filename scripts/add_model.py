@@ -69,6 +69,7 @@ import fcntl
 import io
 import json
 import math
+import re
 import sys
 import time
 from pathlib import Path
@@ -132,18 +133,37 @@ ARTEFACT = (
 # with a caveat next to it still reads as a value. ADD A KEY HERE ONLY AFTER
 # ITS OWN RENDERS, and the file says which those were.
 MEASURED_SOURCES = {
-    "janku",                       # sampler+cfg, seeds 1111/2222, research/confirm/janku/
-    "rinflanime",                  # sampler+cfg, seeds 1111/2222; final size measured
-                                   # against a size x steps interaction, research/confirm/rinflanime/
-    "cyberrealistic-illustrious",  # sampler+cfg, seeds 1111/2222
-    "oneobsession",                # sampler+cfg, seeds 1111/2222
-    "wai-illustrious",             # cfg 6.0 confirmed worse at 4.0; sampler swept
-    "perfectdeliberate",           # draft size + steps swept, research/draft-size/
     "bas-anima",                   # sampler sweep: DPM++ renders pure noise here
     "lustrousmix-anima",
     "cyberrealistic-anima",
     "juggernaut-ragnarok",
 }
+# A model in config/models.private.yaml joins them by carrying this marker in
+# its comments, so the gate covers it without its key being named in a
+# published file (scripts/publish.sh refuses an export that names one).
+MEASURED_MARKER = "MEASURED SOURCE"
+
+
+def measured_sources() -> set[str]:
+    """MEASURED_SOURCES and every private model whose entry carries the marker."""
+    from app.registry import CONFIG_PATH, private_path
+
+    path = private_path(CONFIG_PATH)
+    if not path.is_file():
+        return set(MEASURED_SOURCES)
+    marked, pending, key = set(), "", None
+    for line in path.read_text().splitlines():
+        m = re.match(r"^  ([a-z0-9][a-z0-9-]*):\s*$", line)
+        if m:
+            key = m.group(1)
+            if MEASURED_MARKER in pending:
+                marked.add(key)
+            pending = ""
+        elif re.match(r"^  #", line):
+            pending += line
+        elif key and MEASURED_MARKER in line:
+            marked.add(key)
+    return set(MEASURED_SOURCES) | marked
 
 # Every render goes under research/, never data/, and no frame is ever
 # replaced (research_frames.keep): the harness used to write data/add_model/
@@ -572,7 +592,7 @@ def confirm(r: "Renderer", out: Path, found: str, key: str, sib_key: str,
                      if rec.get("path") else None))
 
     # NOTE the step count: these use the SIBLING's final.steps, not a measured
-    # one, and on rinflanime that is exactly what exposed a duplicated subject
+    # one, and on an Illustrious finetune that is exactly what exposed a duplicated subject
     # at 1536/24 that 1536/20 does not show. So this cell tests one point in a
     # size x steps plane, and a duplicate seen here is a reason to sweep both
     # axes rather than to lower the size (MODEL-MEASUREMENTS.md).
@@ -617,8 +637,8 @@ YOUR EYES, ON THREE SHEETS -- 1:1 centre crops, in {out}
       it is the one thing that has been got wrong twice here. If a second
       figure appears, do NOT simply lower the size: these cells are one point
       in a size x steps plane and the step count here is the sibling's, not a
-      measured one. Sweep both axes -- rinflanime duplicates at 1536/24 on
-      every seed and at 1536/20 on none.
+      measured one. Sweep both axes -- one Illustrious finetune here
+      duplicates at 1536/24 on every seed and at 1536/20 on none.
 
 WHAT THIS RUN DELIBERATELY DID NOT MEASURE, AND WHY THAT IS DEFENSIBLE
   prompt_budget   inherited as the conservative 240/600 default, which is what
@@ -627,7 +647,7 @@ WHAT THIS RUN DELIBERATELY DID NOT MEASURE, AND WHY THAT IS DEFENSIBLE
                   necessary, never a broken render. 10 renders to close.
   aspect_size     inherited from {sib_key} as a guess, NOT rendered here.
                   Confirm it on every ratio before shipping:
-                  scripts/sweep_aspect.py --models {args.key}
+                  scripts/sweep_aspect.py --models {key}
   tiled_diffusion / max_upscale_size
                   absent, as on every SDXL entry here: they reach 2048 unaided.
   draft.steps     inherited from {sib_key}. This is the weakest of the
@@ -637,6 +657,17 @@ WHAT THIS RUN DELIBERATELY DID NOT MEASURE, AND WHY THAT IS DEFENSIBLE
                   Faithful rather than on the draft.
 """)
     return 0
+
+
+def measuring_registry():
+    """The registry with every model as shipped: no optional LoRA ticked.
+
+    What --like inherits and what the sheets render at is the sibling's own
+    recipe. With the ticks at their defaults, lustrousmix-anima's draft and
+    final are its Turbo LoRA's (1024 and 8 steps, cfg 1), and a confirm run
+    printed that as the geometry to copy and rendered its sheets at it.
+    """
+    return load_registry(lora_options=False)
 
 
 def sides(budget: int, w: int, h: int) -> tuple[int, int]:
@@ -693,7 +724,7 @@ def main() -> int:
               "process, so there is nothing to clean up.)")
         return 1
 
-    registry = load_registry()
+    registry = measuring_registry()
     # without this every spec's `installed` is None and registry.upscaler is
     # unset, so the control model could be one that is not on disk and the
     # enlarge step would fall back to a hard-coded upscaler name
@@ -734,8 +765,9 @@ def main() -> int:
         if sib is None:
             print(f"FAIL: --like {args.like} is not a key in config/models.yaml.")
             return 1
-        if args.like not in MEASURED_SOURCES:
-            print(f"FAIL: {args.like} is not in MEASURED_SOURCES, so its own "
+        if args.like not in measured_sources():
+            print(f"FAIL: {args.like} is not a measured source (MEASURED_SOURCES, or"
+                  f" a private entry marked {MEASURED_MARKER}), so its own "
                   f"sampler and cfg were never established by rendering it. An "
                   f"unmeasured entry is not a source -- that is how three "
                   f"checkpoints here got the wrong sampler "

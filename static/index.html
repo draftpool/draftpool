@@ -3723,14 +3723,21 @@ function showDetail(g) {
   v.showModal();
 }
 
-// Clip lengths are 4n+1 because Wan models expect it, and cost grows faster
-// than frame count, so the presets carry their measured wait times.
-const CLIP_PRESETS = [
-  { frames: 17, label: "1s (17f)" },
-  { frames: 33, label: "2s (33f)" },
-  { frames: 49, label: "3s (49f)" },
-  { frames: 81, label: "5s (81f)" },
-];
+// Clip lengths come from the model: each family has its own frame grid (Wan
+// 4n+1 at 16 fps, MiniMax H3 17n+5 at 24), so the server sends the lengths
+// nearest 1, 2, 3 and 5 seconds and the wait for each. These are the fallback
+// for a server from before it did.
+const CLIP_PRESETS = [17, 33, 49, 81];
+function clipOptions(m, selected) {
+  const fps = (m && m.fps) || 16;
+  const frames = (m && m.presets && m.presets.length) ? m.presets : CLIP_PRESETS;
+  // keep roughly the same length when the model changes: the nearest in seconds
+  const want = selected ? selected.frames / selected.fps : 2;
+  let pick = frames[0];
+  for (const f of frames) if (Math.abs(f / fps - want) < Math.abs(pick / fps - want)) pick = f;
+  return frames.map(f => `<option value="${f}"${f === pick ? " selected" : ""}>`
+    + `${(f / fps).toFixed(1).replace(/\.0$/, "")}s (${f}f)</option>`).join("");
+}
 
 function showAnimate(g) {
   if (!VIDEO_MODELS.length) {
@@ -3744,15 +3751,16 @@ function showAnimate(g) {
     <div style="width:620px;max-width:90vw;padding:18px">
       <h3 style="margin:0 0 8px;font-size:14px">Animate ${g.id.slice(0,6)} · image to video</h3>
       <p class="warn" style="margin:0 0 10px">Camera moves and ambient motion (wind, cloth, hair,
-        light) work well. A <b>pose change does not</b> &mdash; the subject shifts or takes a step
-        instead of doing what you asked, so generate the still already in the pose you want. Ask for
-        one continuous motion, and don't mention the camera unless you want it to move: these models
-        ignore negation, so &quot;the camera holds still&quot; produces a camera move.
-        ~12 min a clip.</p>
+        light) work well. On FusionX a <b>pose change does not</b> &mdash; the subject shifts or takes
+        a step instead of doing what you asked, so generate the still already in the pose you want;
+        MiniMax H3 can do one (a seated figure standing up worked). Ask for one continuous motion, and
+        don't mention the camera unless you want it to move: these models ignore negation, so
+        &quot;the camera holds still&quot; produces a camera move. MiniMax H3 moves more than FusionX
+        for the same words, so ask it for less.</p>
       <div class="row" style="margin-bottom:10px">
         <select id="animModel" style="background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font:inherit">${opts}</select>
         <select id="animLen" style="background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font:inherit">
-          ${CLIP_PRESETS.map(p => `<option value="${p.frames}"${p.frames === 33 ? " selected" : ""}>${p.label}</option>`).join("")}
+          ${clipOptions(VIDEO_MODELS[0], null)}
         </select>
       </div>
       <textarea id="animPrompt" rows="2" style="width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font:inherit"
@@ -3797,7 +3805,15 @@ function showAnimate(g) {
          instead gives the same clip.</p>`
       : "";
   };
-  v.querySelector("#animModel").onchange = est;
+  const model = () => VIDEO_MODELS.find(x => x.key === v.querySelector("#animModel").value);
+  let lastModel = model();
+  v.querySelector("#animModel").onchange = () => {
+    const len = v.querySelector("#animLen");
+    const was = { frames: Number(len.value), fps: (lastModel && lastModel.fps) || 16 };
+    lastModel = model();
+    len.innerHTML = clipOptions(lastModel, was);
+    est();
+  };
   v.querySelector("#animLen").onchange = est;
   est();
   v.querySelector("#animCancel").onclick = () => v.close();
@@ -3811,7 +3827,8 @@ function showAnimate(g) {
         body: { prompt: box.value.trim(),
                 // the LLM plans the action to fit; without this it wrote for a
                 // clip up to 2.4x longer than the one being rendered
-                num_frames: Number(v.querySelector("#animLen").value), fps: 16 }});
+                num_frames: Number(v.querySelector("#animLen").value),
+                fps: (model() && model().fps) || 16, model_key: v.querySelector("#animModel").value }});
       box.value = res.prompt;
       note.style.display = "";
       note.textContent = res.used_image
@@ -3829,7 +3846,6 @@ function showAnimate(g) {
         model_key: v.querySelector("#animModel").value,
         prompt: v.querySelector("#animPrompt").value.trim(),
         num_frames: Number(v.querySelector("#animLen").value),
-        fps: 16,
       }});
       v.close();
       addRound(`Animate · from ${g.id.slice(0,6)}`, [gen], true);

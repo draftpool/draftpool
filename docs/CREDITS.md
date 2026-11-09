@@ -24,8 +24,7 @@ them (see the [README](../README.md#license)).
 - [Z-Image Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo): Alibaba
   Tongyi-MAI.
 - [Krea 2 Turbo](https://www.krea.ai/models/krea-2-turbo): Krea AI.
-- [Juggernaut XL Ragnarok](https://civitai.com/models/133005?modelVersionId=1759168):
-  KandooAI / RunDiffusion.
+- Juggernaut XL Ragnarok: KandooAI / RunDiffusion.
 - [Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) and
   [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511):
   Alibaba Qwen team. The editor behind Edit and Combine.
@@ -36,17 +35,15 @@ them (see the [README](../README.md#license)).
   [FusionX](https://huggingface.co/vrgamedevgirl84/Wan14BT2VFusioniX) merge by
   vrgamedevgirl84. Some parts of the merge are licensed for non-commercial use
   only.
+- [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) (MiniMax), under
+  the MiniMax H3 Community License, with the
+  [Turbo LoRA](https://huggingface.co/inflected111/MiniMax-H3-Turbo-Lora) by
+  larryvrh.
 
 **Community models (Civitai)**
 - [LustrousMix Anima v1.0](https://civitai.com/models/941345?modelVersionId=2982979): Hoseki.
 - [BAS+ Better Anime Style Plus](https://civitai.com/models/2675648?modelVersionId=3004325): news_v_com.
 - [CyberRealistic Anima](https://civitai.com/models/2668799?modelVersionId=3136380): Cyberdelia.
-- [WAI-illustrious-SDXL v17.0](https://civitai.com/models/827184?modelVersionId=2883731): WAI0731.
-- [CyberRealistic CyberIllustrious Anime v5.0](https://civitai.com/models/2081804?modelVersionId=2886849): Cyberdelia.
-- [One obsession v24](https://civitai.com/models/1318945?modelVersionId=3218603): maxfeifei8.
-- [JANKU Illustrious XL v7.77](https://civitai.com/models/1277670?modelVersionId=2786084): janxd.
-- [RIN Flanime Illustrious v5.0](https://civitai.com/models/1544647?modelVersionId=3262295): Rin_x0.
-- [PerfectDeliberate-Anime v5.0_A](https://civitai.com/models/111274?modelVersionId=2925672): Desync.
 
 **Speed LoRAs**
 - [Qwen-Image-Edit-2511 Lightning](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning): LightX2V.

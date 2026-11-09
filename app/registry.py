@@ -24,6 +24,43 @@ log = logging.getLogger(__name__)
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "models.yaml"
 
+
+def private_path(path: Path) -> Path:
+    """The models kept beside `path` that are never published: models.private.yaml.
+
+    scripts/publish.sh leaves this file out of the public copy, so an entry
+    that belongs to this checkout alone goes here rather than into
+    models.yaml, which ships whole. It holds `models` and `video_models` only;
+    everything else is the shipped file's.
+    """
+    return path.with_name(path.stem + ".private" + path.suffix)
+
+
+def _read_config(path: Path) -> dict:
+    """models.yaml with models.private.yaml's entries added after its own.
+
+    A key in both is refused rather than resolved: the private entry winning
+    would quietly replace a shipped model's measured numbers, and the shipped
+    one winning would hide that the private entry is dead.
+    """
+    raw = yaml.safe_load(path.read_text()) or {}
+    extra_path = private_path(path)
+    if not extra_path.is_file():
+        return raw
+    extra = yaml.safe_load(extra_path.read_text()) or {}
+    stray = set(extra) - {"models", "video_models"}
+    if stray:
+        raise ValueError(f"{extra_path.name} may only hold models and video_models, "
+                         f"not {sorted(stray)}")
+    for section in ("models", "video_models"):
+        mine, theirs = raw.get(section) or {}, extra.get(section) or {}
+        both = set(mine) & set(theirs)
+        if both:
+            raise ValueError(f"{extra_path.name} redefines {section} already in "
+                             f"{path.name}: {sorted(both)}")
+        raw[section] = {**mine, **theirs}
+    return raw
+
 DEFAULT_MODELS_DIRS = [
     "~/Library/Containers/com.liuliu.draw-things/Data/Documents/Models",
     "~/Pictures/models",
@@ -347,6 +384,16 @@ class Registry(BaseModel):
                 vspec.dt_filename = found
             elif not found:
                 log.info("video model %s (%s) not installed", vspec.key, vspec.dt_filename)
+            for lora in vspec.loras:
+                lfound = match_filename(lora.file, files)
+                if lfound and lfound != lora.file:
+                    lora.file = lfound
+                elif not lfound:
+                    # its steps are only right with the LoRA on (H3 at 8
+                    # steps without it left a cross-hatched texture on the
+                    # moving hair of the clip measured), so hide the model
+                    vspec.installed = False
+                    log.info("video model %s: LoRA %s not installed", vspec.key, lora.file)
         # `shown` folds in `available`, which the scan above has just decided,
         # and a LoRA option is only on while its file is there
         self._recompute_shown()
@@ -425,8 +472,11 @@ def load_registry(path: Path = CONFIG_PATH, *, lora_options: bool = True) -> Reg
     defaults, a sweep of a model whose accelerator ships ticked renders the
     accelerator's recipe while recording the numbers as the model's own.
     The app leaves them as shipped and lays the install's ticks over them.
+
+    A models.private.yaml beside `path` adds its models after the shipped
+    ones (see private_path).
     """
-    raw = yaml.safe_load(path.read_text())
+    raw = _read_config(path)
     models = {
         key: ModelSpec(key=key, **spec) for key, spec in (raw.get("models") or {}).items()
     }

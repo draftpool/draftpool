@@ -64,7 +64,7 @@ Ways around it:
 Not affected: **Fix faces** works on the faces alone, so the image keeps its
 size. It skips a face that is already large (common on an upscale), because
 repainting it would add nothing, and says so. **More
-like this** makes new images. **Animate** always renders at about 832×480.
+like this** makes new images. **Animate** always renders at about 832×480, or 832×512 on MiniMax H3.
 
 ## Upscaling with a different model
 
@@ -72,12 +72,14 @@ By default an image is upscaled by the model that made it. You can choose
 another in the picker next to the button, for a change of style or a faster
 model, but expect the fine detail to change: softer faces, blurrier foliage.
 
-## Why a pose change never animates
+## Why a pose change doesn't animate on FusionX
 
-The video model moves the pixels of the first frame. It has no idea of a body
-or skeleton, so no wording will make a standing person sit down. You'll get a
+FusionX moves the pixels of the first frame. It has no idea of a body or
+skeleton, so no wording will make a standing person sit down. You'll get a
 smooth clip where they shift or take a step instead. Start from a still that
-already has the pose you want.
+already has the pose you want, or use MiniMax H3: asked to stand up from a
+sofa, its figure did, in one smooth motion with the camera tilting up to
+follow.
 
 It also doesn't understand negatives, which is why "the camera stays still"
 makes the camera move: it acts on the words that are there.

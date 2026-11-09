@@ -164,7 +164,9 @@ def test_put_enabled_returns_every_model(client):
 def test_put_enabled_accepts_a_video_model(client):
     res = client.put("/api/models/fusionx/enabled", json={"enabled": False}).json()
     assert {m["key"]: m["shown"] for m in res["models"]}["fusionx"] is False
-    assert client.get("/api/video-models").json()[0]["shown"] is False
+    video = {m["key"]: m for m in client.get("/api/video-models").json()}
+    assert video["fusionx"]["shown"] is False
+    assert video["minimax-h3"]["shown"] is True
 
 
 def test_unknown_key_is_a_404(client):

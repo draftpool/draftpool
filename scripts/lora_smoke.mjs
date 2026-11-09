@@ -12,19 +12,12 @@
  * negative-prompt box is there at all -- and all of that is redrawn from the
  * server's reply rather than guessed on the page.
  */
-const require = (await import("node:module")).createRequire(import.meta.url);
 const { spawn } = await import("node:child_process");
 const fs = await import("node:fs");
 const os = await import("node:os");
 const path = await import("node:path");
 
-const PUPPETEER = [
-  "/opt/homebrew/lib/node_modules/website-scraper-puppeteer/node_modules/puppeteer",
-  "puppeteer",
-];
-let puppeteer = null;
-for (const p of PUPPETEER) { try { puppeteer = require(p); break; } catch {} }
-if (!puppeteer) { console.error("puppeteer not found; npm i -g puppeteer"); process.exit(2); }
+const { launchBrowser } = await import("./smoke_browser.mjs");
 
 const PORT = process.argv[2] || "8573";
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -68,7 +61,7 @@ if (!m) { console.error("needs a model with an installed LoRA option that is on"
 const opt = m.lora_options.find(o => o.on && o.available);
 console.log(`using ${m.key} / ${opt.key}`);
 
-const browser = await puppeteer.launch({ headless: true });
+const browser = await launchBrowser();
 const page = await browser.newPage();
 const errors = [];
 page.on("pageerror", e => { errors.push(String(e)); console.log("PAGEERROR", String(e)); });

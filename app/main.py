@@ -503,7 +503,7 @@ async def run_video_job(gen) -> None:
     notify(gen.session_id, {"id": gen.id, "status": "running"})
     started = time.monotonic()
     num_frames = gen.num_frames or 33
-    fps = gen.fps or 16
+    fps = gen.fps or spec.fps
     try:
         frames = await dt.img2video(
             init_png,
@@ -522,6 +522,10 @@ async def run_video_job(gen) -> None:
             start_frame_guidance=spec.start_frame_guidance,
             guiding_frame_noise=spec.guiding_frame_noise,
             shift=spec.shift,
+            shift_for_audio=spec.shift_for_audio,
+            # what the card was queued with, so a Retry repeats it
+            sampler=gen.sampler,
+            loras=[l.model_dump() for l in (gen.loras if gen.loras is not None else spec.loras)],
             # the default request timeout is minutes; these jobs run for
             # tens of minutes, so allow generous headroom over the estimate
             timeout=max(1800.0, spec.estimate_seconds(num_frames) * 3.0),
@@ -983,10 +987,13 @@ async def video_models() -> list[dict]:
             "width": v.width,
             "height": v.height,
             "steps": v.steps,
-            # minutes for the two presets, so the UI can warn before a job that
+            # the clip lengths this model offers (its own grid at its own fps)
+            # and the minutes for each, so the UI can warn before a job that
             # runs for an hour: cost grows faster than frame count
+            "fps": v.fps,
+            "presets": v.presets(),
             "est_minutes": {
-                str(n): max(1, v.estimate_seconds(n) // 60) for n in (17, 33, 49, 81)
+                str(n): max(1, v.estimate_seconds(n) // 60) for n in v.presets()
             },
         }
         for v in registry.video_models.values()
@@ -1005,7 +1012,7 @@ async def animate(gen_id: str, req: AnimateRequest) -> Generation:
         spec = registry.video_model_or_raise(req.model_key)
     except (KeyError, ValueError) as exc:
         raise HTTPException(400, str(exc))
-    frames = video.snap_frame_count(req.num_frames)
+    frames = spec.snap_frames(req.num_frames)
     # the model's configured size is a pixel budget, not a fixed shape: sending
     # a square still to 832x480 flattens it, so take the aspect from the still
     width, height = video.clip_size(
@@ -1029,10 +1036,13 @@ async def animate(gen_id: str, req: AnimateRequest) -> Generation:
         aspect=dims.nearest_aspect(width, height),
         steps=spec.steps,
         cfg=spec.cfg,
-        sampler=None,
+        sampler=spec.sampler,
+        loras=[l.model_dump() for l in spec.loras] or None,
         parent_id=parent.id,
         num_frames=frames,
-        fps=req.fps,
+        # the model's own rate, not the request's: H3 at 16 fps would play
+        # its 24 fps motion half again too slow
+        fps=spec.fps,
     )
     job_queue.put_nowait(gen.id)
     return gen
@@ -1056,7 +1066,11 @@ async def animate_prompt(gen_id: str, req: MotionPromptRequest) -> dict:
         image_b64 = base64.b64encode(store.image_path(parent).read_bytes()).decode()
     # the real clip length, not a guess: a motion planned for 5s and rendered
     # in 2 is performed as a nudge and a hold (docs/decisions/VIDEO.md)
-    seconds = video.snap_frame_count(req.num_frames) / max(1, req.fps)
+    spec = registry.video_models.get(req.model_key or "")
+    if spec is not None:
+        seconds = spec.snap_frames(req.num_frames) / spec.fps
+    else:
+        seconds = video.snap_frame_count(req.num_frames) / max(1, req.fps)
     variant = await llm.motion(req.prompt, parent.prompt, image_b64, seconds=seconds)
     return {"prompt": variant.prompt, "used_image": image_b64 is not None}
 
@@ -1698,7 +1712,7 @@ async def finalize(gen_id: str, req: FinalizeRequest) -> Generation:
     # figure that was the face (docs/decisions/DRAFT-STEPS.md). qwen-image's
     # cap is a render ceiling and stays on both (ModelSpec.shaped_cap). The
     # budget itself is the final's unless the model names a Faithful one
-    # (ModelSpec.faithful_size: rinflanime's final is pinned at 1024 by what
+    # (ModelSpec.faithful_size: a model whose final is pinned at 1024 by what
     # its txt2img does at 1536, which a Faithful does not do).
     width, height = dims.stage_dims(
         spec.faithful_budget if kind == "faithful" else spec.final.size,

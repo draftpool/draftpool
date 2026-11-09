@@ -1,6 +1,6 @@
 """Sweep the final stage's step count on one or more models, keeping every frame.
 
-    uv run python scripts/sweep_final_steps.py --models perfectdeliberate
+    uv run python scripts/sweep_final_steps.py --models juggernaut-ragnarok
     uv run python scripts/sweep_final_steps.py --models all --seeds 1111,4242
 
 Why this exists rather than the numbers already in config/models.yaml: eight of
@@ -86,12 +86,6 @@ LADDERS = {
     # better, so the shipped value sits between two cells nobody had rendered
     "bas-anima": [8, 16, 24, 32],
     "cyberrealistic-anima": [30, 44, 60],
-    "wai-illustrious": [20, 28, 40],     # the trio whose 20/28/40 call was crop-only
-    # 24 added after the first pass, same reason as bas-anima: the verdict
-    # landed between two rendered cells
-    "cyberrealistic-illustrious": [20, 24, 28, 40],
-    "oneobsession": [20, 28, 40],
-    "perfectdeliberate": [20, 30, 45],
     "juggernaut-ragnarok": [20, 32, 48],
     # DT recommends 30 and this model returns an EMPTY image well before that
     # (see the table in config/models.yaml). 16 is in to confirm the threshold
@@ -101,7 +95,7 @@ LADDERS = {
 
 # Two scenes, both crowded with small detail, in the two prompt dialects. Two
 # rather than one because a single scene has hidden a break before: the sweep
-# in DRAFT-STEPS.md found wai-illustrious clean on its market scene at 10 steps
+# in DRAFT-STEPS.md found an Illustrious model clean on its market scene at 10 steps
 # and broken on its portrait at the same cell. That is also the reason the
 # default is two scenes at ONE seed rather than one scene at two -- of the two
 # axes, this is the one with a break on the record.
@@ -318,10 +312,10 @@ async def run(keys: list[str], seeds: list[int], scenes: list[str],
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--models", default="perfectdeliberate",
+    ap.add_argument("--models", default="juggernaut-ragnarok",
                     help="comma-separated keys, or 'all'")
     # One seed, two scenes. The second SCENE is the axis that has actually
-    # caught something -- DRAFT-STEPS.md's wai-illustrious break shows up on the
+    # caught something -- DRAFT-STEPS.md's Illustrious break shows up on the
     # portrait and not on the market at the same cell, and one scene would have
     # shipped it. A second seed doubles the bill for a weaker guarantee: it
     # separates "this cell is broken" from "this seed is unlucky", which matters
@@ -353,14 +347,16 @@ def main() -> None:
         lora = {"file": file, "weight": float(weight or 1.0)}
         tag = tag or file.split("_")[0]
     keys = list(LADDERS) if args.models == "all" else args.models.split(",")
-    unknown = [k for k in keys if k not in LADDERS]
+    # an explicit --steps is a ladder, so a model with none here can still be
+    # swept -- one in config/models.private.yaml must not be named in this file
+    unknown = [k for k in keys if k not in LADDERS and not args.steps]
     if unknown:
-        raise SystemExit(f"no ladder for {unknown}; add one to LADDERS")
+        raise SystemExit(f"no ladder for {unknown}; add one to LADDERS or pass --steps")
     run_dir = asyncio.run(run(keys, [int(s) for s in args.seeds.split(",")],
                               args.scenes.split(","),
                               [int(s) for s in args.steps.split(",")] if args.steps else None,
                               lora, args.cfg, tag,
-                              run_dir=Path(args.run) if args.run else None))
+                              run_dir=Path(args.run).resolve() if args.run else None))
     from scripts.research_frames import archive
     if args.note:
         print(f"archived into {archive(run_dir, args.note)}")

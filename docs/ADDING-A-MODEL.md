@@ -1,6 +1,98 @@
 # Adding a model
 
-How to add a model that doesn't come with the app.
+There are two ways to add a model the app doesn't include:
+
+- **[Plug it in from Civitai](#plugging-in-a-model-from-civitai)**: any
+  Illustrious, Anima or SDXL checkpoint, in a minute, with its base model's
+  settings. Start here.
+- **[Measure it on your machine](#measuring-a-model-on-your-machine)**: renders
+  that settle this checkpoint's own numbers. An hour or more, for when the base
+  model's settings aren't good enough or the base model has no profile.
+
+The video models need neither. **MiniMax H3** and **Wan 2.1 FusionX** are
+already defined in the app: install them in Draw Things
+([setup](SETUP.md#the-video-models)) and they appear in **Animate**.
+
+## Plugging in a model from Civitai
+
+**What can be plugged in.** A full checkpoint, the kind Civitai lists as
+*Checkpoint*, of one of these base models:
+
+| Civitai's "Base Model" | what it is | settings it gets from |
+|---|---|---|
+| **Illustrious** | SDXL-architecture anime models trained on Danbooru tags | six Illustrious finetunes measured here |
+| **Anima** | Cosmos 2.5 2B anime models | the Anima models that ship with the app |
+| **SDXL 1.0** | SDXL photographic and general models | Juggernaut XL Ragnarok |
+
+What it doesn't take:
+
+- **Other base models**, among them Pony, NoobAI, SD 1.5, FLUX and the newer
+  architectures. No model of those bases was measured here, so there's no
+  profile to start from. For FLUX, Z-Image, Krea 2 and Qwen Image, the app
+  already includes a model from Draw Things' catalogue. Anything else Draw
+  Things can import can be [measured](#measuring-a-model-on-your-machine)
+  instead.
+- **LoRAs**, which add a style or character to a checkpoint rather than being
+  one. The speed LoRAs the app uses are set up already
+  ([setup](SETUP.md#loras)).
+- **Video models**. Both are already defined, as above.
+
+1. **Download the checkpoint** from its Civitai page, and note its **version
+   id**: the number after `modelVersionId=` in the page's address once the
+   version you want is selected.
+2. **Import it into Draw Things**: **Models list → Manage → Import Model**.
+   The file can have any name.
+3. **List what the app doesn't use yet:**
+
+   ```bash
+   uv run python scripts/add_civitai_model.py
+   ```
+
+4. **Add it**, with the file name from that list and the version id:
+
+   ```bash
+   uv run python scripts/add_civitai_model.py <file> --civitai <version id>
+   ```
+
+5. **Restart the server.** The model appears in the composer's model row.
+
+What the entry gets:
+
+- **Its base model's settings**, from `config/base_models.yaml`: what the
+  models of that base measured here agree on. A sound start, not a measurement
+  of your checkpoint. Civitai's page says which base it is.
+- **Or settings measured on that exact version**, when it is one of the
+  versions measured here individually (`config/tuned_models.yaml`). The script
+  says which of the two it used.
+- **Credit when you publish**: the version id is what attributes the
+  checkpoint on Civitai.
+
+| option | use |
+|---|---|
+| `--base illustrious`, `--base anima`, `--base sdxl` | name the base yourself instead of asking Civitai. An Anima model needs neither, because Draw Things already knows it is one |
+| `--key`, `--label` | the app's internal name for it, and the name it shows |
+| `--dry-run` | print the entry without adding it |
+
+The script refuses, rather than guesses, when:
+
+- Civitai lists the checkpoint as **Pony**, **NoobAI** or another base with no
+  profile. No model of those bases was measured here; `--base` overrides it if
+  you know which profile fits.
+- The base it's told doesn't match the architecture Draw Things recorded for
+  the import, which usually means the wrong file was picked.
+- The import is already in the app's config.
+
+The entry goes in `config/models.private.yaml`, which is yours: updates never
+touch it and it isn't part of the repository. To change a setting, edit the
+entry there and restart. Sampler and CFG vary most between finetunes, so if
+the model's Civitai page recommends others, those are the two to change. To
+remove the model, delete its entry.
+
+## Measuring a model on your machine
+
+Renders that settle the checkpoint's own sampler, steps and sizes. Use it when
+the profile's settings don't suit a checkpoint, or for a base model the add
+script has no profile for.
 
 ## 1. Import it into Draw Things
 
@@ -120,10 +212,10 @@ Three warnings:
 - Don't trust the first search result. Re-uploads often rank above the
   official page. Check the creator (`CivitaiOfficial` for a catalogue model)
   and the base model.
-- Check the author's other pages first. `perfectdeliberate` is one letter from
-  a different model by the same author with the same version number
-  (PerfectDeliberate v5.0 vs PerfectDeliberate-Anime v5.0_A), and searching the
-  base name doesn't show the variant.
+- Check the author's other pages first. A model can be one letter from a
+  different model by the same author with the same version number (an "-Anime"
+  variant against the plain one, say), and searching the base name doesn't
+  show the variant.
 
 ## 6. Paste the entry in and restart the server
 

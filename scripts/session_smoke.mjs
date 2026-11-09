@@ -5,8 +5,8 @@
  *
  * Self-contained: it starts its own server on a spare port against a throwaway
  * data directory, seeds the sessions it needs and cleans both up. Needs `uv`
- * and puppeteer (the copy that comes with a global website-scraper-puppeteer,
- * or a plain `puppeteer` resolvable from here).
+ * and puppeteer (smoke_browser.mjs says which copy, and which Chrome, it
+ * uses).
  *
  * It exists because the composer is the one part of the page that a session
  * switch has to *empty* as well as fill, and nothing on the server can see
@@ -15,19 +15,12 @@
  * the top -- left the previous session's blocks standing, so pressing Generate
  * queued the other session's prompts against this session's models.
  */
-const require = (await import("node:module")).createRequire(import.meta.url);
 const { spawn } = await import("node:child_process");
 const fs = await import("node:fs");
 const os = await import("node:os");
 const path = await import("node:path");
 
-const PUPPETEER = [
-  "/opt/homebrew/lib/node_modules/website-scraper-puppeteer/node_modules/puppeteer",
-  "puppeteer",
-];
-let puppeteer = null;
-for (const p of PUPPETEER) { try { puppeteer = require(p); break; } catch {} }
-if (!puppeteer) { console.error("puppeteer not found; npm i -g puppeteer"); process.exit(2); }
+const { launchBrowser } = await import("./smoke_browser.mjs");
 
 const PORT = process.argv[2] || "8571";
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -114,7 +107,7 @@ const plainSession = await newSession(B_TEXT, {
 const C_TEXT = "castle in the sky";
 const bare = await newSession(C_TEXT, null);
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+const browser = await launchBrowser();
 const page = await browser.newPage();
 await page.setViewport({ width: 1400, height: 1000 });
 const errors = [];

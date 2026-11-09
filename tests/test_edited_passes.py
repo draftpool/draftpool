@@ -21,7 +21,7 @@ from app import main
 from app.registry import CONFIG_PATH, load_registry
 from app.sessions import Store
 
-DRAWER = "oneobsession"      # a Danbooru checkpoint, untiled: 2048 at most
+DRAWER = "juggernaut-ragnarok"  # an SDXL checkpoint, untiled: 2048 at most
 EDITOR = "qwen-edit"
 ORDER = "replace the head piece with jewelry. Keep everything else exactly unchanged."
 SCENE = "masterpiece, 1girl, ornate silver headdress, crimson gown"

@@ -159,7 +159,7 @@ def test_a_qwen_edit_publishes_the_checkpoint_that_drew_it(client, fake):
     assert "Steps: 28" in text and "qwen" not in text.lower()
 
 
-def an_upscale_of(client, parent, model_key="janku"):
+def an_upscale_of(client, parent, model_key="lustrousmix-anima"):
     up = main.store.create_generation(
         session_id=parent.session_id, kind="upscale", model_key=model_key,
         prompt=parent.prompt, negative_prompt=parent.negative_prompt,
@@ -178,15 +178,15 @@ def test_an_upscale_credits_the_model_that_ran_it_as_well(client, fake):
     parent = a_finished_image(client, model_key="krea2-turbo")
     up = an_upscale_of(client, parent)
     krea = main.registry.models["krea2-turbo"].civitai_version_id
-    janku = main.registry.models["janku"].civitai_version_id
+    upscaler = main.registry.models["lustrousmix-anima"].civitai_version_id
     defaults = client.get(f"/api/generations/{up.id}/publish-defaults").json()
     assert f'"modelVersionId":{krea}' in defaults["settings"]
-    assert f'"modelVersionId":{janku}' in defaults["settings"]
+    assert f'"modelVersionId":{upscaler}' in defaults["settings"]
     client.post(f"/api/generations/{up.id}/publish", json={})
     text = Image.open(io.BytesIO(fake.png)).text["parameters"]
     # the composer is first and keeps Model: to itself
-    assert text.index(str(krea)) < text.index(str(janku))
-    assert "krea" in text and "janku" not in text.split("Civitai resources")[0]
+    assert text.index(str(krea)) < text.index(str(upscaler))
+    assert "krea" in text and "lustrousmix" not in text.split("Civitai resources")[0].lower()
     # the picture is still krea2's, so its numbers stand
     assert "Steps: 28" in text
     # the post links the composer, which is the checkpoint whose seed is on it
@@ -204,12 +204,12 @@ def test_the_upscaler_is_the_credit_when_the_composer_has_no_civitai_page(client
     monkeypatch.setattr(main.registry.models["krea2-turbo"], "civitai_version_id", None)
     parent = a_finished_image(client, model_key="krea2-turbo")
     up = an_upscale_of(client, parent)
-    janku = main.registry.models["janku"].civitai_version_id
+    upscaler = main.registry.models["lustrousmix-anima"].civitai_version_id
     client.post(f"/api/generations/{up.id}/publish", json={})
     text = Image.open(io.BytesIO(fake.png)).text["parameters"]
-    assert f'"modelVersionId":{janku}' in text
+    assert f'"modelVersionId":{upscaler}' in text
     assert "Steps: 28" in text and "krea" in text
-    assert fake.sent["model_version_id"] == janku
+    assert fake.sent["model_version_id"] == upscaler
 
 
 def test_the_post_is_always_a_draft_and_nothing_can_ask_otherwise(client, fake):

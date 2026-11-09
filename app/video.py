@@ -118,8 +118,28 @@ def _write_webp(frames: list[bytes], fps: int, out: Path) -> Path:
     return out
 
 
-def snap_frame_count(n: int) -> int:
-    """Wan models expect 4n+1 frames; snap to the nearest valid value."""
-    if n < 5:
-        return 5
-    return round((n - 1) / 4) * 4 + 1
+def snap_frame_count(n: int, step: int = 4, offset: int = 1) -> int:
+    """Snap to the nearest clip length on the model's grid: offset + step*k.
+
+    Wan models take 4k+1 frames (the defaults); MiniMax H3 takes 17k+5 (its
+    Turbo LoRA's card says so, and 22, 73 and 124 came back as asked). The
+    queued length is then the one the LLM's motion plan is written for. One
+    step is the shortest clip, so k is at least 1.
+    """
+    k = max(1, round((n - offset) / step))
+    return offset + step * k
+
+
+def clip_presets(fps: int, step: int = 4, offset: int = 1) -> list[int]:
+    """Frame counts for the Animate dialog's 1, 2, 3 and 5 second choices.
+
+    Each is the grid length nearest to that many seconds at the model's own
+    fps: at 16 fps on Wan's grid that is 17/33/49/81, at 24 fps on H3's it is
+    22/56/73/124. The dialog labels them with the seconds they really come to.
+    """
+    out: list[int] = []
+    for seconds in (1, 2, 3, 5):
+        n = snap_frame_count(seconds * fps, step, offset)
+        if n not in out:
+            out.append(n)
+    return out

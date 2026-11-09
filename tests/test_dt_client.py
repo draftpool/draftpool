@@ -148,3 +148,54 @@ def test_only_file_and_weight_of_a_lora_reach_draw_things():
     assert DrawThingsClient("http://x")._build_payload(
         prompt="p", negative_prompt="", model_filename="m.ckpt", width=64, height=64,
         steps=4, cfg=1.0, seed=1, sampler=None)["loras"] == []
+
+
+def capture_httpx(monkeypatch, body, sent):
+    class FakeClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, url, json=None):
+            sent.append(json)
+            return FakeResponse(body)
+
+    monkeypatch.setattr(dt_client.httpx, "AsyncClient", FakeClient)
+
+
+def _frames_body(n=2):
+    return {"images": [base64.b64encode(png_bytes(8, 8)).decode()] * n}
+
+
+async def test_img2video_sends_h3_recipe(monkeypatch):
+    sent = []
+    capture_httpx(monkeypatch, _frames_body(), sent)
+    await DrawThingsClient("http://x").img2video(
+        png_bytes(64, 64), prompt="p", model_filename="h3.ckpt", width=64, height=64,
+        steps=8, cfg=1.0, seed=1, num_frames=22, fps=24, shift=12.0,
+        shift_for_audio=3.0, sampler="DDIM Trailing",
+        loras=[{"file": "turbo_lora_f16.ckpt", "weight": 1.0}],
+    )
+    p = sent[0]
+    assert p["shift_for_audio"] == 3.0
+    assert p["sampler_name"] == "DDIM Trailing"
+    assert p["loras"] == [{"file": "turbo_lora_f16.ckpt", "weight": 1.0}]
+    assert p["fps"] == 24 and p["num_frames"] == 22
+
+
+async def test_img2video_leaves_wan_request_as_it_was(monkeypatch):
+    # FusionX was measured without these fields; adding H3 must not add them
+    sent = []
+    capture_httpx(monkeypatch, _frames_body(), sent)
+    await DrawThingsClient("http://x").img2video(
+        png_bytes(64, 64), prompt="p", model_filename="wan.ckpt", width=64, height=64,
+        steps=8, cfg=1.0, seed=1, num_frames=33, fps=16,
+    )
+    p = sent[0]
+    assert "shift_for_audio" not in p and "sampler_name" not in p
+    assert p["loras"] == []

@@ -75,6 +75,61 @@ models:
     assert reg.llm.model == "test"
 
 
+_MODEL = """
+    label: {label}
+    dt_filename: {label}.ckpt
+    draft: {{ size: 128, steps: 2 }}
+    final: {{ size: 512, steps: 10 }}
+    upscale: {{ size: 1024, steps: 8, strength: 0.4 }}
+"""
+
+
+def _shipped(tmp_path: Path) -> Path:
+    cfg = tmp_path / "models.yaml"
+    cfg.write_text("models:\n  m1:" + _MODEL.format(label="m1"))
+    return cfg
+
+
+def test_private_models_are_added_after_the_shipped_ones(tmp_path: Path):
+    """models.private.yaml is how a model stays out of the public copy.
+
+    publish.sh leaves that file out and ships models.yaml whole, so a model
+    only this checkout should offer is configured there -- and has to load
+    exactly as if it were in models.yaml, or keeping it private would cost it
+    the app.
+    """
+    cfg = _shipped(tmp_path)
+    (tmp_path / "models.private.yaml").write_text(
+        "models:\n  p1:" + _MODEL.format(label="p1"))
+    reg = load_registry(cfg)
+    assert list(reg.models) == ["m1", "p1"]
+    assert reg.model_or_raise("p1").final.size == 512
+    # its shipped stages are captured like any other's, so Reset works on it
+    assert reg.models["p1"].final.default_steps == 10
+
+
+def test_no_private_file_is_the_shipped_registry(tmp_path: Path):
+    """The public copy has no models.private.yaml and must load as before."""
+    assert list(load_registry(_shipped(tmp_path)).models) == ["m1"]
+
+
+def test_a_private_model_cannot_replace_a_shipped_one(tmp_path: Path):
+    """Either way of resolving a clash would hide something: refuse it."""
+    cfg = _shipped(tmp_path)
+    (tmp_path / "models.private.yaml").write_text(
+        "models:\n  m1:" + _MODEL.format(label="other"))
+    with pytest.raises(ValueError, match="redefines models"):
+        load_registry(cfg)
+
+
+def test_the_private_file_holds_models_only(tmp_path: Path):
+    """An llm or draw_things block there would be silently ignored otherwise."""
+    cfg = _shipped(tmp_path)
+    (tmp_path / "models.private.yaml").write_text("llm: { model: x }\n")
+    with pytest.raises(ValueError, match="only hold models"):
+        load_registry(cfg)
+
+
 def _spec(dt_filename, loras=None, style="prose"):
     from app.schemas import ModelSpec
 
@@ -170,9 +225,46 @@ def test_loads_video_models_from_default_config():
     # FusionX is distilled: few steps at CFG 1
     assert fx.steps == 8
     assert fx.cfg == 1.0
-    # the only video model that ships; AniSora was measured and dropped
-    # (docs/decisions/VIDEO.md)
-    assert list(reg.video_models) == ["fusionx"]
+    # AniSora was measured and dropped (docs/decisions/VIDEO.md)
+    # H3 first: the dialog defaults to the first one offered
+    assert list(reg.video_models) == ["minimax-h3", "fusionx"]
+
+
+def test_h3_ships_on_its_own_grid_and_recipe():
+    """H3 is not Wan: 17k+5 frames at 24 fps, and its few steps need the LoRA."""
+    h3 = load_registry(CONFIG_PATH).video_models["minimax-h3"]
+    # the first-frame checkpoint, not the reference one
+    assert "fl2va" in h3.dt_filename
+    assert h3.presets() == [22, 56, 73, 124]
+    assert all((n - 5) % 17 == 0 for n in h3.presets())
+    assert h3.fps == 24
+    assert h3.sampler and h3.shift_for_audio is not None
+    assert [l.file for l in h3.loras] and h3.steps <= 8
+    # FusionX keeps Wan's grid and sends neither new field
+    fx = load_registry(CONFIG_PATH).video_models["fusionx"]
+    assert fx.presets() == [17, 33, 49, 81] and fx.fps == 16
+    assert fx.sampler is None and fx.shift_for_audio is None and fx.loras == []
+
+
+def test_resolve_installed_hides_a_video_model_whose_lora_is_missing(tmp_path: Path):
+    from app.registry import DrawThingsConfig, LlmConfig, Registry
+    from app.schemas import LoraSpec, VideoModelSpec
+
+    (tmp_path / "vid_i4x.ckpt").touch()
+    spec = VideoModelSpec(key="v", label="V", dt_filename="vid_i4x.ckpt",
+                          loras=[LoraSpec(file="turbo_lora_f16.ckpt")])
+    reg = Registry(
+        llm=LlmConfig(),
+        draw_things=DrawThingsConfig(models_dirs=[str(tmp_path)]),
+        models={},
+        video_models={"v": spec},
+    )
+    reg.resolve_installed()
+    assert reg.video_models["v"].installed is False
+    assert not reg.video_models["v"].available
+    (tmp_path / "turbo_lora_f16.ckpt").touch()
+    reg.resolve_installed()
+    assert reg.video_models["v"].available
 
 
 def test_video_estimate_grows_faster_than_frame_count():
@@ -184,6 +276,15 @@ def test_video_estimate_grows_faster_than_frame_count():
     assert per_frame_81 > per_frame_33
     # and the calibrated point should land near the 1844s that was measured
     assert 1500 < fx.estimate_seconds(81) < 2200
+
+
+def test_h3_estimate_is_near_linear_and_lands_on_its_measurements():
+    h3 = load_registry(CONFIG_PATH).video_models["minimax-h3"]
+    # measured 860s at 124 frames and 172s at 22 (that one with a model load)
+    assert 800 < h3.estimate_seconds(124) < 920
+    assert 120 < h3.estimate_seconds(22) < 200
+    # not Wan's frames^1.32: per-frame cost holds steady with length
+    assert abs(h3.estimate_seconds(124) / 124 - h3.estimate_seconds(22) / 22) < 0.5
 
 
 def test_unknown_video_model_raises():
@@ -335,7 +436,10 @@ def test_tag_models_have_a_negative_prompt_floor():
 
     reg = load_registry()
     checked = 0
-    for key, spec in reg.models.items():
+    # the models as shipped: a default-on speed LoRA runs at CFG 1 and takes
+    # the negative away, which on a checkout whose only tag models are the
+    # Anima ones would leave nothing to check
+    for key, spec in load_registry(lora_options=False).models.items():
         if spec.prompt_style != "tags" or not spec.uses_negative_prompt:
             continue
         checked += 1
@@ -362,11 +466,18 @@ def _yaml_blocks() -> dict[str, str]:
     A comment block sitting above a key documents THAT key, not the one whose
     body it happens to follow, so pending comment lines are carried forward
     onto the next key rather than backwards onto the previous one. Getting this
-    the other way round attributed a banner comment to `oneobsession` and made
+    the other way round attributed a banner comment to the wrong model and made
     the marker check below fail on the wrong model.
     """
+    from app.registry import private_path
+
     text = CONFIG_PATH.read_text()
     body = text.split("\nmodels:\n", 1)[1].split("\nvideo_models:", 1)[0]
+    private = private_path(CONFIG_PATH)
+    if private.is_file():
+        # its models carry the same markers; only the models section, so the
+        # file's own header is not credited to the last shipped model
+        body += "\n" + re.split(r"(?m)^models:\n", private.read_text(), maxsplit=1)[1]
     blocks: dict[str, str] = {}
     key, pending = None, ""
     for line in body.splitlines():
@@ -404,7 +515,9 @@ def test_an_unconfirmed_entry_is_never_a_like_source():
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from scripts.add_model import MEASURED_SOURCES
+    from scripts.add_model import measured_sources
+
+    MEASURED_SOURCES = measured_sources()
 
     reg = load_registry(CONFIG_PATH)
     unconfirmed = {k for k, text in _yaml_blocks().items() if "UNCONFIRMED" in text}
@@ -420,65 +533,6 @@ def test_an_unconfirmed_entry_is_never_a_like_source():
     assert MEASURED_SOURCES <= set(reg.models), (
         f"MEASURED_SOURCES names keys that are not in the registry: "
         f"{sorted(MEASURED_SOURCES - set(reg.models))}"
-    )
-
-
-def test_the_inherited_illustrious_entry_matches_the_architecture_it_copied():
-    """A cheaply-added entry must actually carry the geometry it claims to.
-
-    `--like` is only defensible while the inherited fields really are the
-    sibling's, so the fields it copies are pinned against the measured source
-    here. Not the sampler, cfg or draft: those are deliberately NOT inherited,
-    and janku's draft steps sit between its siblings' rather than on any one
-    of them.
-    """
-    reg = load_registry(CONFIG_PATH)
-    source = reg.models["cyberrealistic-illustrious"]
-    # rinflanime is left out: its final size is its own (MODEL-MEASUREMENTS.md)
-    for key in ("janku",):
-        spec = reg.models[key]
-        assert spec.prompt_style == source.prompt_style == "tags", key
-        assert spec.clip_skip == source.clip_skip == 2, key
-        assert spec.prompt_budget == source.prompt_budget, key
-        assert spec.final.size == source.final.size == 1536, key
-        assert spec.upscale.size == source.upscale.size == 2048, key
-        assert spec.draft.size == source.draft.size == 768, key
-        # shapes at the SDXL buckets like the source, and 2048 unaided
-        assert spec.aspect_size == source.aspect_size == 1024, key
-        assert spec.tiled_diffusion is False, f"{key}: SDXL reaches 2048 unaided"
-        assert spec.max_upscale_size is None, key
-        # a tag model still needs its opener and its negative floor
-        assert spec.quality_opener and spec.uses_negative_prompt, key
-
-
-def test_rinflanime_keeps_the_smaller_final_it_was_measured_at():
-    """A deliberate divergence from the family, pinned so it is not tidied away.
-
-    Every other Illustrious/SDXL entry renders its final at 1536, so raising
-    this one to match looks like obvious cleanup. It is not: at 1536 with 24
-    steps this checkpoint puts a second figure behind the subject on 3 of 3
-    seeds, where 1536 with 20 steps does so on none and 1024 is clean at both
-    (docs/decisions/MODEL-MEASUREMENTS.md; frames in research/confirm/).
-
-    1536/20 is measured clean and still rejected, because final.steps is
-    overridable per install from the gear in the header -- so shipping a size
-    that fails four steps away hands out a configuration a user can break
-    without being told why. If this assert ever needs changing, the thing to
-    change first is the measurement.
-    """
-    reg = load_registry(CONFIG_PATH)
-    spec = reg.models["rinflanime"]
-    assert spec.final.size == 1024, (
-        "rinflanime's final size is measured, not inherited: 1536 duplicates "
-        "the subject at 24 steps on every seed"
-    )
-    # the step count it was measured clean at, and the size it must not creep to
-    assert spec.final.steps <= 24
-    assert spec.draft.size == 768
-    # and the cap is about area, so no shape may spend more of it than square
-    assert spec.aspect_size is not None and spec.aspect_size <= spec.final.size, (
-        "a shape budget above the final's would render shapes at an area this "
-        "checkpoint was measured to duplicate at"
     )
 
 

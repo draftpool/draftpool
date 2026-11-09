@@ -239,9 +239,9 @@ def test_a_per_generation_override_out_of_range_is_rejected(client):
 
 def test_faithful_steps_undoes_the_halving_an_img2img_pass_does():
     reg = load_registry(CONFIG_PATH)
-    m = reg.models["wai-illustrious"]
+    m = reg.models["juggernaut-ragnarok"]
     assert m.final.strength == 0.5
-    assert m.faithful_steps == m.final.steps * 2       # 28 -> 56, i.e. 28 real
+    assert m.faithful_steps == m.final.steps * 2       # 32 -> 64, i.e. 32 real
 
 
 def test_faithful_steps_never_exceeds_the_limit():

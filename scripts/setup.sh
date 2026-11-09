@@ -2,7 +2,8 @@
 # One-time setup for draftpool on a new Mac (Apple Silicon).
 #
 # Installs the tooling (Ollama, uv, Real-ESRGAN) unconditionally; model
-# downloads are opt-in and additive:  ./scripts/setup.sh [--llms] [--anime-checkpoints]
+# downloads are opt-in and additive:
+#   ./scripts/setup.sh [--llms] [--anime-checkpoints] [--video-lora]
 # See --help. Draw Things itself, and every model in its own catalogue, is a
 # manual step: the script ends by printing exactly what to install and where
 # each piece comes from.
@@ -24,6 +25,16 @@ fi
 
 DOWNLOAD_LLMS=0
 DOWNLOAD_CHECKPOINTS=0
+DOWNLOAD_VIDEO_LORA=0
+# MiniMax H3's Turbo LoRA: not in Draw Things' catalogue, and without it the
+# app hides H3 (8 steps without it left a grid texture on the moving hair of
+# the clip measured; the 50 it would need instead were four times slower).
+# A plain Hugging Face file,
+# so no token. Name, size in MB, direct URL, page.
+H3_LORA_NAME="minimax_h3_turbo_v4_step600_ema"
+H3_LORA_MB=780
+H3_LORA_URL="https://huggingface.co/inflected111/MiniMax-H3-Turbo-Lora/resolve/main/minimax_h3_turbo_v4_step600_ema.safetensors"
+H3_LORA_PAGE="https://huggingface.co/inflected111/MiniMax-H3-Turbo-Lora/blob/main/minimax_h3_turbo_v4_step600_ema.safetensors"
 
 # The project's own settings file (gitignored; written further down on a
 # first run, so it is normally present from the second run onward).
@@ -46,7 +57,7 @@ fi
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/setup.sh [--llms] [--anime-checkpoints]
+Usage: ./scripts/setup.sh [--llms] [--anime-checkpoints] [--video-lora]
 
 Always run, no flags needed: Homebrew packages (Ollama, uv), the Ollama
 service, the Python environment, and the Real-ESRGAN upscaler. With no flags
@@ -66,9 +77,13 @@ The flags are additive and only decide what gets downloaded for you:
                         Things' own catalogue, so they need CIVITAI_TOKEN
                         (civitai.com -> Account settings -> API Keys); none
                         of them is needed to run the app.
+  --video-lora          The Turbo LoRA for MiniMax H3, the recommended video
+                        model (~0.8GB, from Hugging Face, no token). Animate
+                        hides H3 until it is imported. H3 itself comes from
+                        Draw Things' catalogue (below).
 
 Models in Draw Things' own catalogue (FLUX, Z-Image, Krea 2, Juggernaut,
-Qwen Image, Qwen Edit, the video model) are never downloaded here -- the
+Qwen Image, Qwen Edit, the video models) are never downloaded here -- the
 app fetches and converts those itself. Setup prints their exact names instead.
 
 Free space is checked against the total before anything downloads, so the run
@@ -78,6 +93,7 @@ Examples:
   ./scripts/setup.sh                            # tooling + upscaler + what to install
   ./scripts/setup.sh --llms                     # + the two Ollama models
   ./scripts/setup.sh --llms --anime-checkpoints # + the three anime checkpoints
+  ./scripts/setup.sh --video-lora               # + MiniMax H3's Turbo LoRA
 USAGE
 }
 
@@ -85,6 +101,7 @@ for arg in "$@"; do
   case "$arg" in
     --llms) DOWNLOAD_LLMS=1 ;;
     --anime-checkpoints) DOWNLOAD_CHECKPOINTS=1 ;;
+    --video-lora) DOWNLOAD_VIDEO_LORA=1 ;;
     # dropped rather than aliased: it used to pull checkpoints too, and doing
     # that silently under a flag that says nothing about them would be worse
     # than an error that names the replacement
@@ -139,9 +156,11 @@ LLM_NEED_GB=14   # only what is actually missing; recomputed by the disk check
 ollama_has() {
   ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$1"
 }
-# What Draw Things itself will pull for the video model, printed at the end so
-# the number is visible before starting the download in the app.
+# What Draw Things itself will pull for each video model (H3 with its text
+# encoder and decoder), printed at the end so the numbers are visible before
+# starting a download in the app.
 VIDEO_GB=17
+H3_GB=54
 
 # GB free on the volume holding a given path
 free_gb() { df -Pk "$1" | awk 'NR==2 {printf "%d", $4/1024/1024}'; }
@@ -349,7 +368,7 @@ else
   echo "   (it usually stays on, but can switch itself off after an app update)"
 fi
 
-if [ "$DOWNLOAD_LLMS" = "1" ] || [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
+if [ "$DOWNLOAD_LLMS" = "1" ] || [ "$DOWNLOAD_CHECKPOINTS" = "1" ] || [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
   # Add up what this run will actually pull and refuse before starting rather
   # than dying half way through a 20GB download with a full disk.
   echo "== Disk check"
@@ -379,6 +398,9 @@ EOF
 $CIVITAI_MODELS
 EOF
     NEED_GB=$((NEED_GB + CKPT_NEED_GB))
+  fi
+  if [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
+    NEED_GB=$((NEED_GB + 1))
   fi
   HAVE_GB="$(free_gb "$HOME")"
   echo "-- this run downloads about ${NEED_GB}GB; ${HAVE_GB}GB free on $HOME"
@@ -466,12 +488,25 @@ if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
   echo "  the LoRA:    LoRA list -> Manage -> Import LoRA"
 fi
 
-if [ "$DOWNLOAD_LLMS" != "1" ] && [ "$DOWNLOAD_CHECKPOINTS" != "1" ]; then
+if [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
+  echo "== MiniMax H3 Turbo LoRA (~${H3_LORA_MB}MB, for import into Draw Things)"
+  DEST="$HOME/Downloads/draftpool-models"
+  mkdir -p "$DEST"
+  out="$DEST/$H3_LORA_NAME.safetensors"
+  if curl -L --fail --retry 3 -C - -o "$out" "$H3_LORA_URL"; then
+    echo "   done: $out"
+    echo "   Import it in Draw Things: LoRA list -> Manage -> Import LoRA"
+  else
+    echo "   FAILED -- download it by hand instead: $H3_LORA_PAGE"
+  fi
+fi
+
+if [ "$DOWNLOAD_LLMS" != "1" ] && [ "$DOWNLOAD_CHECKPOINTS" != "1" ] && [ "$DOWNLOAD_VIDEO_LORA" != "1" ]; then
   echo
-  echo "== No models downloaded (no --llms / --anime-checkpoints given)"
+  echo "== No models downloaded (no --llms / --anime-checkpoints / --video-lora given)"
   echo "-- everything below is the full list of what to install, and where each"
-  echo "   piece comes from. Re-run with --llms and/or --anime-checkpoints to have this"
-  echo "   script fetch what it can."
+  echo "   piece comes from. Re-run with --llms, --anime-checkpoints and/or"
+  echo "   --video-lora to have this script fetch what it can."
 fi
 
 echo
@@ -544,14 +579,25 @@ done
 cat <<EOF
    and import them in Draw Things via LoRA list -> Manage -> Import LoRA.
 
+   Any other Illustrious, Anima or SDXL checkpoint: import it in Draw Things,
+   then ${B}uv run python scripts/add_civitai_model.py${N} lists it and adds it with
+   its base model's settings (docs/SETUP.md, "Adding any other model").
+
 EOF
 # unquoted so the free-space figure expands; the text below has no other
 # $ or backticks to worry about
 cat <<EOF
-6. Animate action: the video model, same catalogue as step 2.
-   ${VIDEO_GB}GB, $(free_gb "$HOME")GB free here.
-       ${B}Wan 2.1 14B I2V FusionX${N}   17GB, 8 steps, ~12 min a clip
-   Camera moves and ambient motion work well; pose changes do not.
+6. Animate action: a video model, same catalogue as step 2. $(free_gb "$HOME")GB free here.
+   Recommended:
+       ${B}MiniMax H3 (4-bit S)${N}      ${H3_GB}GB with the encoder and decoder it fetches
+         ~6 min a 2s clip, ~14 min for 5s, at 24 fps; can change a pose
+         (a seated figure stands up). Not the [ref2va] or FastH3 entries.
+         Needs Draw Things 26.0910+ and its Turbo LoRA, imported by hand
+         (LoRA list -> Manage -> Import LoRA); --video-lora downloads it, or:
+         ${H3_LORA_PAGE}
+   Lighter alternative:
+       ${B}Wan 2.1 14B I2V FusionX${N}   ${VIDEO_GB}GB, ~12 min a 2s clip, at 16 fps;
+         camera moves and ambient motion, but no pose changes.
    See docs/GUIDE.md for detail.
 EOF
 cat <<EOF

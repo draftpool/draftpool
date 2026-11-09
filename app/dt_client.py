@@ -357,6 +357,9 @@ class DrawThingsClient:
         start_frame_guidance: float = 1.0,
         guiding_frame_noise: float = 0.02,
         shift: float = 5.0,
+        shift_for_audio: Optional[float] = None,
+        sampler: Optional[str] = None,
+        loras: Optional[list[dict]] = None,
         timeout: Optional[float] = None,
     ) -> list[bytes]:
         """Animate a still into `num_frames` PNG frames, in order.
@@ -381,7 +384,9 @@ class DrawThingsClient:
             "cfg_scale": cfg,
             "seed": seed,
             "batch_size": 1,
-            "loras": [],
+            "loras": [
+                {"file": l["file"], "weight": l.get("weight", 1.0)} for l in loras or []
+            ],
             # see _build_payload: an upscaler selected in the app UI would
             # otherwise be applied to every frame
             "upscaler": None,
@@ -400,6 +405,10 @@ class DrawThingsClient:
             # somebody touches the app. See docs/decisions/VIDEO.md, Finding 5.
             "shift": shift,
         }
+        if shift_for_audio is not None:
+            payload["shift_for_audio"] = shift_for_audio
+        if sampler:
+            payload["sampler_name"] = sampler
         frames = await self._post_all("/sdapi/v1/img2img", payload, timeout=timeout)
         if len(frames) < 2:
             raise DrawThingsError(

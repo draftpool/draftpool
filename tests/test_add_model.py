@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.add_model import (  # noqa: E402
     INHERITED,
     MEASURED_SOURCES,
+    measured_sources,
     architecture,
     cfg_candidates,
     crop_sheet,
@@ -132,17 +133,17 @@ class TestArchitecture:
     def test_identical_checkpoints_report_identical_signatures(self):
         """What licenses --like at all.
 
-        The two Illustrious/SDXL merges already in the registry are the same
-        machine as each other, so their signatures must match exactly apart
-        from where the signature was read from. If this stops holding, --like
-        is comparing something that is not architecture.
+        Two Anima finetunes in the registry are the same machine as each
+        other, so their signatures must match exactly apart from where the
+        signature was read from. If this stops holding, --like is comparing
+        something that is not architecture.
         """
-        a = architecture("cyberrealistic_illustriousanimev50_f16.ckpt")
-        b = architecture("oneobsession_v24_f16.ckpt")
+        a = architecture("hosekilustrousmixanima_animav10_f16.ckpt")
+        b = architecture("cyberrealisticanima_v60aestheticv11_f16.ckpt")
         if not a or not b:
             pytest.skip("Draw Things' custom.json is not present on this machine")
         assert a == b
-        assert a["version"] == "sdxl_base_v0.9"
+        assert a["version"] == "cosmos2.5_2b"
 
     def test_a_different_base_reports_a_different_signature(self):
         """The refusal has to have something to fire on.
@@ -150,7 +151,7 @@ class TestArchitecture:
         A Cosmos 2B checkpoint and an SDXL one must not compare equal, or the
         guard passes everything and inherits geometry across architectures.
         """
-        sdxl = architecture("oneobsession_v24_f16.ckpt")
+        sdxl = architecture("juggernaut_xl_ragnarok_f16.ckpt")
         cosmos = architecture("basbetteranimestyleplusanima_basev10_f16.ckpt")
         if not sdxl or not cosmos:
             pytest.skip("Draw Things' custom.json is not present on this machine")
@@ -168,12 +169,12 @@ class TestArchitecture:
     def test_the_signature_covers_the_modifier(self):
         """v-prediction is the case this has to catch.
 
-        rinFlanime's near-namesake on Civitai is a v-pred checkpoint that
+        One Illustrious finetune's near-namesake on Civitai is a v-pred checkpoint that
         shares a filename stem, and a v-pred model needs a different recipe
         entirely -- so `modifier` has to be part of what is compared, not just
         the base version.
         """
-        sig = architecture("oneobsession_v24_f16.ckpt")
+        sig = architecture("juggernaut_xl_ragnarok_f16.ckpt")
         if not sig:
             pytest.skip("Draw Things' custom.json is not present on this machine")
         assert "modifier" in sig and "autoencoder" in sig and "version" in sig
@@ -183,7 +184,7 @@ class TestInheritanceContract:
     def test_sampler_cfg_and_draft_are_never_inheritable(self):
         """The three fields MODEL-MEASUREMENTS.md records as copied and wrong.
 
-        janku then proved the point from the other direction: the unanimous
+        An Illustrious finetune then proved the point from the other direction: the unanimous
         four-of-four DPM++ 2M Karras prior predicted the wrong sampler for it,
         and only a structural refusal to inherit the field kept the measured
         value. If one of these ever appears in INHERITED, that protection is
@@ -197,11 +198,13 @@ class TestInheritanceContract:
 
         MEASURED_SOURCES is the gate on --like; a key that no longer exists
         cannot be selected, so the gate would quietly stop protecting anything.
+        The private models marked as measured count too, when the file is here.
         """
         from app.registry import CONFIG_PATH, load_registry
 
         keys = set(load_registry(CONFIG_PATH).models)
         assert MEASURED_SOURCES <= keys, sorted(MEASURED_SOURCES - keys)
+        assert measured_sources() <= keys, sorted(measured_sources() - keys)
 
 
 class TestCfgCandidates:
@@ -245,3 +248,48 @@ class TestCfgCandidates:
         """The whole point is a short batch; a third cfg doubles the grid."""
         for card in [x / 2 for x in range(2, 31)]:
             assert len(cfg_candidates(card)) <= 2, card
+
+
+def test_a_sibling_is_measured_without_its_optional_loras():
+    """--like copies the sibling as shipped, not with a default-on accelerator.
+
+    lustrousmix-anima ships its Turbo LoRA ticked, and a confirm run against
+    it printed `final: steps 8, cfg 1.0, loras [turbo]` as the geometry to
+    inherit, then rendered the step-direction sheet at 8 x 1.5 = 12 steps.
+    """
+    from scripts.add_model import measuring_registry
+
+    sib = measuring_registry().models["lustrousmix-anima"]
+    assert sib.final.loras == []
+    assert sib.final.steps == sib.final.default_steps == 24
+    assert sib.final.cfg is None
+
+
+def test_a_confirm_run_reaches_its_report(tmp_path, capsys):
+    """The report at the end of a confirm run is what names the sheets.
+
+    It used `args.key`, and `args` only exists in main(), so every confirm run
+    rendered its whole grid, wrote the sheets and then died on a NameError
+    before saying where they were or what to look for.
+    """
+    from types import SimpleNamespace
+
+    from scripts.add_model import confirm
+
+    frame = _png(tmp_path / "frame.png", (256, 256))
+
+    class Stub:
+        results: dict = {}
+
+        def control(self):
+            pass
+
+        def render(self, name, **job):
+            self.results[name] = {"ok": True, "path": str(frame), "seconds": 1.0}
+            return self.results[name]
+
+    stage = SimpleNamespace(size=256, steps=4)
+    sib = SimpleNamespace(draft=stage, final=stage, clip_skip=1)
+    assert confirm(Stub(), tmp_path, "m.ckpt", "new-key", "sib-key", sib,
+                   ["Euler a"], [4.0, 2.5], 4) == 0
+    assert "sweep_aspect.py --models new-key" in capsys.readouterr().out

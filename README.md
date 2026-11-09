@@ -46,14 +46,15 @@ Every prompt, seed and setting is saved, so any image can be made again.
 
 Nothing is instant. On an M4 Pro a draft takes 15 seconds to a minute
 depending on the model, a finished image a couple of minutes, and a
-two-second video about twelve.
+two-second video about six on MiniMax H3.
 [Full timings →](docs/GUIDE.md#how-long-things-take)
 
 ## Setup
 
 You need an Apple Silicon Mac on macOS 13 or later. 48GB of memory runs
 everything; 16GB is enough for the smaller models but not the large ones or
-video. Plan on about 60GB of disk for a full set of models.
+video. Plan on about 60GB of disk for a full set of image models, and another
+55GB for the video model.
 
 ```bash
 git clone https://github.com/draftpool/draftpool.git
@@ -72,6 +73,16 @@ Three steps are manual, because the script can't control the Draw Things app:
    good first one) and the **4x UltraSharp** upscaler under **Official
    Upscalers**.
 3. Run `uv run python scripts/probe.py` to check the app can reach Draw Things.
+
+For **Animate**, the recommended video model is **MiniMax H3 (4-bit S)** from
+Draw Things' model manager (54GB with what it fetches alongside, Draw Things
+26.0910 or later). It also needs its Turbo LoRA,
+[`minimax_h3_turbo_v4_step600_ema`](https://huggingface.co/inflected111/MiniMax-H3-Turbo-Lora/blob/main/minimax_h3_turbo_v4_step600_ema.safetensors)
+(0.8GB, or `./scripts/setup.sh --video-lora`), imported via **LoRA list →
+Manage → Import LoRA**, which makes it about four times faster. A two-second
+clip takes about six minutes, and unlike the older FusionX it can change a
+pose, so a seated figure can stand up.
+[Video setup →](docs/SETUP.md#the-video-models)
 
 Then start the server:
 
@@ -93,7 +104,7 @@ background service; if it isn't running, start it with
 The page header shows **Draw Things up · Ollama up** once everything is
 connected.
 
-The community models from Civitai, the image editor, the video model and
+The community models from Civitai, the image editor, the video models and
 troubleshooting are covered in the [full setup guide](docs/SETUP.md).
 
 ### Your data
@@ -119,8 +130,8 @@ Also as a website: https://draftpool.github.io/draftpool/
 - [Deep dive](docs/DEEP-DIVE.md): edge cases and workarounds.
 - [Setup](docs/SETUP.md): full install, Civitai models, data, updating,
   troubleshooting.
-- [Adding a model](docs/ADDING-A-MODEL.md): checking and setting up a model
-  the app doesn't include.
+- [Adding a model](docs/ADDING-A-MODEL.md): plugging in a model from Civitai,
+  or measuring one the app doesn't include.
 - [Credits](docs/CREDITS.md): the apps and models this is built on.
 
 For developers: run the tests with `uv run pytest`. Code comments sometimes

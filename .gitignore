@@ -15,5 +15,9 @@ civitai.key
 site/
 runs/
 
+# your own models (scripts/add_civitai_model.py): kept out of git so an update
+# never touches them. The private repo tracks its copy regardless.
+config/models.private.yaml
+
 # add_model.py's renders
 research/

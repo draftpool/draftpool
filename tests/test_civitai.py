@@ -65,11 +65,11 @@ def test_an_instruction_edit_publishes_the_checkpoint_that_drew_it():
     Its row names the editor, which has no Civitai version to attribute, and
     its "prompt" is the order it was given. Neither made the picture.
     """
-    final = gen(id="f", kind="final", model_key="oneobsession", prompt="1girl, headdress")
+    final = gen(id="f", kind="final", model_key="juggernaut-ragnarok", prompt="1girl, headdress")
     edit = gen(id="e", kind="edit", parent_id="f", model_key="qwen-edit",
                prompt="replace the head piece with jewelry.")
     again = gen(id="g", kind="edit", parent_id="e", model_key="qwen-edit", prompt="make it night")
-    up = gen(id="u", kind="upscale", parent_id="g", model_key="oneobsession")
+    up = gen(id="u", kind="upscale", parent_id="g", model_key="juggernaut-ragnarok")
     chain = {"f": final, "e": edit, "g": again}
     editors = {"qwen-edit"}
     assert civitai.source_of(edit, chain, editors).id == "f"
@@ -475,23 +475,13 @@ def test_no_vocabulary_snapshot_means_no_tags_rather_than_a_crash(monkeypatch):
 
 def test_every_civitai_checkpoint_can_attribute_itself(registry):
     """A model imported from Civitai should credit its page when published."""
+    # the private models' ids are checked in tests/private/
     expected = {
         "lustrousmix-anima": 2982979, "bas-anima": 3004325,
-        "cyberrealistic-anima": 3136380, "wai-illustrious": 2883731,
-        "cyberrealistic-illustrious": 2886849, "oneobsession": 3218603,
-        "juggernaut-ragnarok": 1759168, "perfectdeliberate": 2925672,
-        "janku": 2786084,
+        "cyberrealistic-anima": 3136380, "juggernaut-ragnarok": 1759168,
     }
     for key, version_id in expected.items():
         assert registry.models[key].civitai_version_id == version_id, key
-
-
-def test_perfectdeliberate_credits_the_anime_line_not_its_near_namesake(registry):
-    """v50a is PerfectDeliberate-Anime v5.0_A (111274), not PerfectDeliberate
-    v5.0 (24350). One letter, same author, same version number, different
-    weights -- and crediting the wrong one would have looked perfectly normal.
-    """
-    assert registry.models["perfectdeliberate"].civitai_version_id == 2925672
 
 
 def test_a_model_with_no_version_id_publishes_no_resource_claim():

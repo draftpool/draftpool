@@ -12,19 +12,12 @@
  * made from one removed draft are still one lineage, and the "from" link and
  * the params chain say the draft was removed rather than failing on it.
  */
-const require = (await import("node:module")).createRequire(import.meta.url);
 const { spawn, execFileSync } = await import("node:child_process");
 const fs = await import("node:fs");
 const os = await import("node:os");
 const path = await import("node:path");
 
-const PUPPETEER = [
-  "/opt/homebrew/lib/node_modules/website-scraper-puppeteer/node_modules/puppeteer",
-  "puppeteer",
-];
-let puppeteer = null;
-for (const p of PUPPETEER) { try { puppeteer = require(p); break; } catch {} }
-if (!puppeteer) { console.error("puppeteer not found; npm i -g puppeteer"); process.exit(2); }
+const { launchBrowser } = await import("./smoke_browser.mjs");
 
 const PORT = process.argv[2] || "8572";
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -91,7 +84,7 @@ print(json.dumps(dict(session=s.id, leaf=leaf, kept=kept, a=a, b=b, up=up,
 const ids = JSON.parse(execFileSync("uv", ["run", "python", "-c", seed, dataDir, model.key],
   { cwd: ROOT, encoding: "utf8" }));
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+const browser = await launchBrowser();
 const page = await browser.newPage();
 await page.setViewport({ width: 1400, height: 1000 });
 const errors = [];

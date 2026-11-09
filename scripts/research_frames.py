@@ -19,7 +19,7 @@ frame is ever regenerated or replaced. The lifecycle:
     uv run python scripts/research_frames.py check --all      # every folder
     uv run python scripts/research_frames.py archive runs/draft-size__20260919-070013 \\
         --note "LustrousMix 640/768/1024 untick drafts, Faithfuls read at 1:1"
-    uv run python scripts/research_frames.py note research/draft-size/janku \\
+    uv run python scripts/research_frames.py note research/draft-size/juggernaut-ragnarok \\
         --files 'winter-queen*' --note "..."                  # annotate frames already there
 """
 from __future__ import annotations

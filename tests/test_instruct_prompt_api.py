@@ -29,7 +29,7 @@ def client(tmp_path, monkeypatch):
 def an_image(client, prompt="1girl in a park, a red mug on the table"):
     sid = client.post("/api/sessions", json={"instruction": "a cat"}).json()["id"]
     gen = main.store.create_generation(
-        session_id=sid, kind="final", model_key="oneobsession", prompt=prompt,
+        session_id=sid, kind="final", model_key="juggernaut-ragnarok", prompt=prompt,
         negative_prompt="blurry", seed=42, width=1024, height=1024, steps=20,
         cfg=4.0, sampler="DPM++ 2M Karras",
     )

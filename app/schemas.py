@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 from .dims import ASPECTS
 from .settings import STAGES, STEP_MAX, STEP_MIN
+from .video import clip_presets, snap_frame_count
 
 
 class LoraSpec(BaseModel):
@@ -201,8 +202,8 @@ class ModelSpec(BaseModel):
     aspect_size_is_ceiling: bool = False
     # The budget a Faithful renders at when it is not the final's. Absent on
     # every model but one: a Faithful is img2img at 0.5 over a draft and
-    # normally takes `final.size`. rinflanime's final is held at 1024 because
-    # its txt2img at 1536 draws the figure twice, but a Faithful composes
+    # normally takes `final.size`. One Illustrious finetune's final is held at
+    # 1024 because its txt2img at 1536 draws the figure twice, but a Faithful composes
     # nothing -- four of four 1536 Faithfuls on it were one figure, with the
     # face formed where the 1024 one's was smeared (DRAFT-STEPS.md, "A Faithful
     # size of its own"). A number rather than a flag so a model can name a
@@ -351,8 +352,37 @@ class VideoModelSpec(BaseModel):
     # Wan reference one and the point of setting it is reproducibility.
     # See docs/decisions/VIDEO.md, Finding 5.
     shift: float = 5.0
-    # measured seconds per output frame, for the UI's wait estimate
+    # MiniMax H3 denoises a soundtrack alongside the frames on its own flow
+    # schedule, and Draw Things has a second shift for it (shiftForAudio in its
+    # configs). Sent for the reason `shift` is, by analogy: whether the HTTP
+    # API honours this field was not tested, and the soundtrack never comes
+    # back to look at. None for models with no audio stream, which do not get
+    # the field at all.
+    shift_for_audio: Optional[float] = None
+    # Sent as sampler_name when set, the field the still path is measured to
+    # honour. None leaves Draw Things on whatever its own sampler picker holds,
+    # which is how FusionX was measured and still runs; see the matching
+    # comment in DrawThingsClient._build_payload for why that is a hazard
+    # rather than "the model's default".
+    sampler: Optional[str] = None
+    # Always sent with every clip. A missing file marks the model not installed
+    # (the chip is hidden), as a stage's fixed LoRA does for a still model:
+    # the steps above are only right with it applied.
+    loras: list[LoraSpec] = []
+    # The clip-length grid, offset + step*k frames, and the playback rate the
+    # model was trained at: Wan is 4k+1 at 16 fps, MiniMax H3 17k+5 at 24.
+    frame_step: int = 4
+    frame_offset: int = 1
+    fps: int = 16
+    # measured seconds per output frame, for the UI's wait estimate, and the
+    # clip length it was measured at (cost per frame grows with length)
     sec_per_frame: float = 20.0
+    sec_per_frame_at: int = 81
+    # how much faster than linear cost grows with clip length: per-frame cost
+    # scales as (frames / sec_per_frame_at) ** this. 0.32 is FusionX's,
+    # measured; H3 + Turbo measured near-linear (172s at 22 frames, 860s at
+    # 124, so about 24s fixed and 6.7s a frame) and ships 0.
+    cost_exponent: float = 0.32
 
     installed: Optional[bool] = None
 
@@ -366,22 +396,39 @@ class VideoModelSpec(BaseModel):
         return bool(self.dt_filename) and self.installed is not False
 
     def estimate_seconds(self, num_frames: int) -> int:
-        """Rough wall-clock estimate. Cost grows faster than frame count.
+        """Rough wall-clock estimate, from one measured clip length.
 
-        Measured 17.1 s/frame at 33 frames and 22.8 at 81, i.e. about
-        frames^1.32. sec_per_frame is calibrated at 81, so scale from there
-        rather than treating cost as linear.
+        On FusionX cost grows faster than frame count: 17.1 s/frame at 33
+        frames and 22.8 at 81, about frames^1.32. sec_per_frame is calibrated
+        at sec_per_frame_at frames and scaled from there by cost_exponent.
         """
-        return int(self.sec_per_frame * num_frames * (num_frames / 81) ** 0.32)
+        return int(
+            self.sec_per_frame * num_frames
+            * (num_frames / self.sec_per_frame_at) ** self.cost_exponent
+        )
+
+    def snap_frames(self, n: int) -> int:
+        """On the model's grid, and no longer than the longest clip offered.
+
+        The cap is the 5 s preset: a request for more (the API allows up to
+        241 frames so H3's 124 fits) would otherwise queue a FusionX clip of
+        hours, which the old 81-frame limit on the request prevented.
+        """
+        return min(snap_frame_count(n, self.frame_step, self.frame_offset),
+                   self.presets()[-1])
+
+    def presets(self) -> list[int]:
+        return clip_presets(self.fps, self.frame_step, self.frame_offset)
 
 
 class AnimateRequest(BaseModel):
     model_key: str
     # motion prompt: what should move. Empty falls back to the parent's prompt.
     prompt: str = ""
-    # Wan expects 4n+1 frames; validated and snapped server-side
-    num_frames: int = Field(default=33, ge=5, le=81)
-    fps: int = Field(default=16, ge=8, le=24)
+    # snapped server-side to the model's own grid and capped at its longest
+    # clip (VideoModelSpec.snap_frames). A clip plays at its model's own fps,
+    # so the request has none: an `fps` an older page sends is ignored.
+    num_frames: int = Field(default=33, ge=5, le=241)
 
 
 class PromptVariant(BaseModel):
@@ -557,8 +604,12 @@ class MotionPromptRequest(BaseModel):
     # The clip this prompt is for. Without it the LLM was told a static "1 to 5
     # seconds" and planned motion for up to 2.4x the clip it actually got, which
     # a model performs by starting the move and then holding.
-    num_frames: int = Field(default=33, ge=5, le=81)
-    fps: int = Field(default=16, ge=8, le=24)
+    num_frames: int = Field(default=33, ge=5, le=241)
+    fps: int = Field(default=16, ge=8, le=30)
+    # the model the clip is for, so the length is snapped to its grid and
+    # timed at its fps; absent (an older page), the request's fps and Wan's
+    # grid are used as before
+    model_key: Optional[str] = None
 
 
 class EditPromptRequest(BaseModel):

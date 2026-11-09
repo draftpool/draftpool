@@ -1,0 +1,273 @@
+# Settings measured on specific checkpoints, by Civitai version id.
+#
+# scripts/add_civitai_model.py uses an entry here instead of the base model's
+# profile (config/base_models.yaml) when the checkpoint you add is one of
+# these versions: the sampler, steps, sizes and the rest were rendered and
+# judged on that exact file. Generated from the measured entries; not edited
+# by hand.
+#
+#   draw_things_version  the architecture Draw Things records for the import;
+#                        a mismatch is refused
+#   settings             a `models:` entry minus label, dt_filename and
+#                        civitai_version_id
+
+tuned:
+  2786084:
+    draw_things_version: sdxl_base_v0.9
+    settings:
+      sampler: Euler a
+      cfg: 5.0
+      uses_negative_prompt: true
+      prompt_style: tags
+      clip_skip: 2
+      prompt_guidance: |
+        Describe the picture in prose -- ordinary sentences, using Danbooru's
+        exact wording wherever it has a word for what you mean (1girl, twin
+        braids, from above, looking at viewer) and plain English wherever it does
+        not. Cover subject count first, then character and series when the
+        subject is a known character, appearance, clothing, expression and pose,
+        scene, lighting, composition, style. Say which subject has which feature
+        and where each thing is in sentences. No artist names.
+      prompt_budget:
+        full: 240
+        fading: 600
+      aspect_size: 1024
+      draft:
+        size: 768
+        steps: 14
+        cfg: 5.0
+        sampler: Euler a
+      final:
+        size: 1536
+        steps: 20
+        strength: 0.5
+      upscale:
+        size: 2048
+        steps: 20
+        strength: 0.3
+  2883731:
+    draw_things_version: sdxl_base_v0.9
+    settings:
+      sampler: DPM++ 2M Karras
+      cfg: 6.0
+      uses_negative_prompt: true
+      prompt_style: tags
+      clip_skip: 2
+      prompt_guidance: |
+        Describe the picture in prose -- ordinary sentences, using Danbooru's
+        exact wording wherever it has a word for what you mean (1girl, twin
+        braids, from above, looking at viewer) and plain English wherever it does
+        not. Cover subject count first, then character and series when the
+        subject is a known character, appearance, clothing, expression and pose,
+        scene, lighting, composition, style. Say which subject has which feature
+        and where each thing is in sentences. No artist names.
+      prompt_budget:
+        full: 240
+        fading: 700
+      aspect_size: 1024
+      draft:
+        size: 768
+        steps: 14
+        cfg: 6.0
+        sampler: DPM++ 2M Karras
+      final:
+        size: 1536
+        steps: 20
+        strength: 0.5
+      upscale:
+        size: 2048
+        steps: 20
+        strength: 0.3
+  2886849:
+    draw_things_version: sdxl_base_v0.9
+    settings:
+      sampler: DPM++ 2M Karras
+      cfg: 4.0
+      uses_negative_prompt: true
+      prompt_style: tags
+      clip_skip: 2
+      prompt_guidance: |
+        Describe the picture in prose -- ordinary sentences, using Danbooru's
+        exact wording wherever it has a word for what you mean (1girl, twin
+        braids, from above, looking at viewer) and plain English wherever it does
+        not. Cover subject count first, then character and series when the
+        subject is a known character, appearance, clothing, expression and pose,
+        scene, lighting, composition, style. Say which subject has which feature
+        and where each thing is in sentences. No artist names.
+      prompt_budget:
+        full: 240
+        fading: 600
+      aspect_size: 1024
+      draft:
+        size: 768
+        steps: 14
+        cfg: 4.0
+        sampler: DPM++ 2M Karras
+      final:
+        size: 1536
+        steps: 24
+        strength: 0.5
+      upscale:
+        size: 2048
+        steps: 20
+        strength: 0.3
+  2925672:
+    draw_things_version: sdxl_base_v0.9
+    settings:
+      aspect_size: 1024
+      sampler: DPM++ 2M Karras
+      cfg: 6.0
+      uses_negative_prompt: true
+      prompt_style: prose
+      prompt_guidance: |
+        Write one flowing prose paragraph. Order: subject and appearance, action,
+        environment, lighting, mood, medium and style. Front-load the most
+        important content in the first sentence. Never use negative phrasing. No
+        tag lists, no weighting syntax.
+      prompt_budget:
+        full: 240
+        fading: 600
+      draft:
+        size: 1024
+        steps: 14
+        cfg: 6.0
+        sampler: DPM++ 2M Karras
+      final:
+        size: 1280
+        steps: 30
+        strength: 0.5
+      upscale:
+        size: 2048
+        steps: 20
+        strength: 0.3
+  3218603:
+    draw_things_version: sdxl_base_v0.9
+    settings:
+      aspect_size: 1024
+      sampler: DPM++ 2M Karras
+      cfg: 4.0
+      uses_negative_prompt: true
+      prompt_style: tags
+      clip_skip: 2
+      prompt_guidance: |
+        Describe the picture in prose -- ordinary sentences, using Danbooru's
+        exact wording wherever it has a word for what you mean (1girl, twin
+        braids, from above, looking at viewer) and plain English wherever it does
+        not. Cover subject count first, then character and series when the
+        subject is a known character, appearance, clothing, expression and pose,
+        scene, lighting, composition, style. Say which subject has which feature
+        and where each thing is in sentences. No artist names.
+      prompt_budget:
+        full: 240
+        fading: 600
+      draft:
+        size: 768
+        steps: 10
+        cfg: 4.0
+        sampler: DPM++ 2M Karras
+      final:
+        size: 1536
+        steps: 20
+        strength: 0.5
+      upscale:
+        size: 2048
+        steps: 20
+        strength: 0.3
+  3262295:
+    draw_things_version: sdxl_base_v0.9
+    settings:
+      sampler: Euler a
+      cfg: 5.0
+      uses_negative_prompt: true
+      prompt_style: tags
+      clip_skip: 2
+      prompt_guidance: |
+        Describe the picture in prose -- ordinary sentences, using Danbooru's
+        exact wording wherever it has a word for what you mean (1girl, twin
+        braids, from above, looking at viewer) and plain English wherever it does
+        not. Cover subject count first, then character and series when the
+        subject is a known character, appearance, clothing, expression and pose,
+        scene, lighting, composition, style. Say which subject has which feature
+        and where each thing is in sentences. This checkpoint is a flat-anime
+        finetune built for clean line art and vibrant flat colour: include the
+        tag "flat color" when that look is wanted, and prefer plain colour and
+        lighting words over photographic or rendering vocabulary. No artist
+        names.
+      prompt_budget:
+        full: 240
+        fading: 600
+      aspect_size: 1024
+      draft:
+        size: 768
+        steps: 14
+        cfg: 5.0
+        sampler: Euler a
+      final:
+        size: 1024
+        steps: 20
+        strength: 0.5
+      faithful_size: 1536
+      upscale:
+        size: 2048
+        steps: 20
+        strength: 0.3
+  3334245:
+    draw_things_version: cosmos2.5_2b
+    settings:
+      aspect_size: 1472
+      quality_prefix: masterpiece, best quality, score_9, score_8, score_7
+      negative_prefix: worst quality, low quality, score_1, score_2, score_3, artist name,
+        blurry, jpeg artifacts, lowres, censor
+      sampler: Euler a
+      cfg: 4.0
+      uses_negative_prompt: true
+      prompt_style: tags
+      prompt_guidance: |
+        Start every prompt with exactly "masterpiece, best quality, score_9,
+        score_8, score_7", then describe the picture in prose -- ordinary
+        sentences, about 60-90 words -- using Danbooru's exact wording wherever
+        it has a word for what you mean (1girl, twin braids, from above, looking
+        at viewer) and plain English wherever it does not. Cover subject count
+        first, then character and series when the subject is a known character,
+        appearance, clothing, expression and pose, scene, lighting, composition
+        and style. Say which subject has which feature and where each thing is
+        in sentences; that is what this form is for. Artist-style names are
+        allowed and effective. Only when the instruction actually asks for words
+        to appear in the picture, put those words in quotes; never invent any.
+        Every negative_prompt must start with "worst quality, low quality,
+        score_1, score_2, score_3, artist name, blurry, jpeg artifacts, lowres,
+        censor" and may append scene-specific tags to avoid.
+      prompt_budget:
+        full: 240
+        fading: 600
+      draft:
+        size: 768
+        steps: 12
+        cfg: 4.0
+        sampler: UniPC Trailing
+      final:
+        size: 1536
+        steps: 24
+        strength: 0.5
+      lora_options:
+      - key: turbo
+        label: Anima Turbo (8 steps)
+        file: anima_turbo_lora_v0.2_lora_f16.ckpt
+        negative_prompt: false
+        opener: anime coloring
+        civitai_version_id: 2979642
+        stages:
+          draft:
+            size: 1024
+            steps: 8
+            cfg: 1.0
+            sampler: Euler a
+          final:
+            steps: 8
+            cfg: 1.0
+      upscale:
+        size: 2048
+        steps: 18
+        strength: 0.3
+      tiled_diffusion: true
+      upscale_seconds: 214

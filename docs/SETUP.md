@@ -53,17 +53,6 @@ Things' catalogue. There are two ways to get them:
 | BAS+ Better Anime Style Plus (Anima base v1.0) | https://civitai.com/models/2675648?modelVersionId=3004325 |
 | CyberRealistic Anima v6.0 | https://civitai.com/models/2668799?modelVersionId=3136380 |
 
-These are imported by hand only:
-
-| Model | Civitai page |
-|---|---|
-| WAI-illustrious-SDXL v17.0 | https://civitai.com/models/827184?modelVersionId=2883731 |
-| CyberRealistic CyberIllustrious Anime v5.0 | https://civitai.com/models/2081804?modelVersionId=2886849 |
-| One obsession v24 | https://civitai.com/models/1318945?modelVersionId=3218603 |
-| JANKU Illustrious v7.77 | https://civitai.com/models/1277670?modelVersionId=2786084 |
-| RIN Flanime Illustrious v5.0 | https://civitai.com/models/1544647?modelVersionId=3262295 |
-| PerfectDeliberate-Anime v5.0_A | https://civitai.com/models/111274?modelVersionId=2925672 |
-
 The app's settings were tested with these exact versions. A newer version will
 probably work too. If you install a different one, update `civitai_version_id`
 for that model in `config/models.yaml`, or a published post will credit the
@@ -73,13 +62,53 @@ Everything else (FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo, Krea 2 Turbo,
 Juggernaut XL Ragnarok, Qwen Image and Qwen Image Edit) comes from Draw Things'
 own catalogue and needs no Civitai account.
 
-To add a model the app doesn't include, see [Adding a model](ADDING-A-MODEL.md).
+## Adding any other model
 
-## The video model
+Any Illustrious, Anima or SDXL checkpoint from Civitai can be plugged in with
+`scripts/add_civitai_model.py`, which sets it up from its base model in a
+minute; the steps are in
+[Adding a model](ADDING-A-MODEL.md#plugging-in-a-model-from-civitai). Your
+models live in `config/models.private.yaml`, which updates never touch.
 
-Optional, for **Animate**. Search Draw Things' model manager for **Wan 2.1 14B
-I2V FusionX** (17GB); it downloads and converts it for you. What it can and
-can't do is in the [guide](GUIDE.md#animate).
+## The video models
+
+Optional, for **Animate**. Install **MiniMax H3**, the recommended one; add
+FusionX only if you want the lighter alternative.
+
+| | MiniMax H3 + Turbo | Wan 2.1 FusionX |
+|---|---|---|
+| a 2-second clip | about 6 min | about 12 min |
+| a 5-second clip | about 14 min | about 30 min |
+| frame rate | 24 fps | 16 fps |
+| a pose change (a seated figure stands up) | worked when tried | doesn't |
+| disk | 54GB, and 0.8GB for the LoRA | 17GB |
+
+Times are on an M4 Pro with 48GB.
+
+### MiniMax H3
+
+It needs Draw Things 26.0910 or later, so update it from the App Store first.
+
+1. In Draw Things' model manager, search for **MiniMax H3** and download
+   **MiniMax H3 (4-bit S)**. It fetches its text encoder and video decoder
+   with it, 54GB in all. Don't take an entry marked **[ref2va]** or **FastH3
+   Omni**: those use your picture as a character reference for a new shot
+   rather than as the first frame.
+2. Download the **Turbo LoRA**, which makes H3 about four times faster at the same quality:
+   [`minimax_h3_turbo_v4_step600_ema.safetensors`](https://huggingface.co/inflected111/MiniMax-H3-Turbo-Lora/blob/main/minimax_h3_turbo_v4_step600_ema.safetensors)
+   (0.8GB, Hugging Face, no account needed), or let the setup script fetch
+   it with `./scripts/setup.sh --video-lora`.
+3. Import it in Draw Things: **LoRA list → Manage → Import LoRA**.
+
+Animate hides H3 until both the model and the LoRA are installed. On a 48GB
+Mac, close other heavy apps while a clip renders.
+
+### Wan 2.1 FusionX
+
+Search Draw Things' model manager for **Wan 2.1 14B I2V FusionX** (17GB); it
+downloads and converts it for you. No LoRA needed.
+
+What each can and can't do is in the [guide](GUIDE.md#animate).
 
 ## Manual install
 
@@ -110,7 +139,7 @@ can't do is in the [guide](GUIDE.md#animate).
     - Download models in the model manager. Start with **Z-Image Turbo**
       (~6GB, and the fastest here), then add **FLUX.2 klein 9B** for a second
       look to compare. Add **Qwen Image Edit 2511** for editing by instruction
-      and Combine, and the [video model](#the-video-model) for Animate.
+      and Combine, and [MiniMax H3](#minimax-h3) for Animate.
     - **FLUX.1 schnell** works but is mostly redundant with FLUX.2 klein and
       Z-Image Turbo.
     - **Qwen Image 2512** is much slower than the rest (minutes per image).
@@ -140,7 +169,7 @@ optional, and you only need the ones for models you have.
 |---|---|---|---|---|
 | **Qwen Image Edit 2511 Lightning 4-Step v1.0** | 0.8GB | Qwen Edit | Edits in about 1.5 minutes instead of 5 | Draw Things' LoRA list · [source](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning) |
 | **Wuli-art Qwen-Image-2512 Turbo (4 steps)** | 1.1GB | Qwen Image 2512 | Finished images in under a minute instead of 3.5 | [Civitai](https://civitai.com/models/2267786?modelVersionId=2552570), then **LoRA list → Manage → Import LoRA**. Not the "Qwen Image 2512 Lightning" in Draw Things' list, which doesn't work here |
-| **Anima Turbo LoRA v0.2** | 0.14GB | LustrousMix Anima, CyberRealistic Anima | Finished images in about a minute instead of six; changes the look | [Civitai](https://civitai.com/models/2560840?modelVersionId=2979642), then **LoRA list → Manage → Import LoRA** |
+| **Anima Turbo LoRA v0.2** | 0.14GB | LustrousMix Anima, CyberRealistic Anima, and any Anima model you add | Finished images in about a minute instead of six; changes the look | [Civitai](https://civitai.com/models/2560840?modelVersionId=2979642), then **LoRA list → Manage → Import LoRA** |
 
 `setup.sh --anime-checkpoints` downloads the two Civitai LoRAs for you. Once
 installed they're switched on; you can turn each one off in the ⚙ dialog.
@@ -194,6 +223,7 @@ no separate migration step.
 |---|---|---|
 | `app/`, `static/`, `scripts/`, `tests/` | yes | nothing |
 | `config/models.yaml` | yes, but you may have edited it | keep a copy of your changes, see below |
+| `config/models.private.yaml` | no, it's yours | nothing: [your own models](#adding-any-other-model) stay |
 | `.venv/` | no | `setup.sh` rebuilds it |
 | `tools/realesrgan` | no | `setup.sh` downloads it again if it's missing |
 | `data/` | **no** | keep it, see [Where your data lives](#where-your-data-lives) |
@@ -216,13 +246,21 @@ folder), run `./scripts/setup.sh`, start the server and check the data folder
 line. Then delete the old folder.
 
 **`config/models.yaml` is the one file where an update can lose your changes.**
-If you've edited it, keep a copy before updating and compare afterwards:
+Put a model of your own in `config/models.private.yaml` instead, ideally with
+[the add script](#adding-any-other-model), and an update can't touch it. If
+you've edited `models.yaml` itself, keep a copy before updating and compare
+afterwards:
 
 ```bash
 cp config/models.yaml ~/models.yaml.mine
 # ...update...
 diff ~/models.yaml.mine config/models.yaml
 ```
+
+**A model that disappears after an update** was dropped from the shipped
+list. If you still have it in Draw Things, add it back with
+`scripts/add_civitai_model.py` and its Civitai version id. If its settings
+were measured here, you get exactly those again.
 
 There's no way to downgrade the database. To go back to an older version, go
 back to a copy of `data/` from before the update too.

@@ -46,11 +46,13 @@ def finals(client, draft):
 
 
 def test_a_shaped_faithful_gets_the_finals_own_budget_where_a_finalize_is_capped(client):
-    spec = main.registry.models["cyberrealistic-illustrious"]
+    spec = main.registry.models["bas-anima"]
     assert spec.aspect_size < spec.final.size and not spec.aspect_size_is_ceiling
     faithful, final = finals(client, a_finished_shaped_draft(client, spec.key))
     assert (faithful["width"], faithful["height"]) == (1856, 1280)
-    assert (final["width"], final["height"]) == (1280, 832)
+    assert (final["width"], final["height"]) == dims.stage_dims(
+        spec.final.size, dims.ratio("3:2"), spec.aspect_size)
+    assert final["width"] < faithful["width"]
     # the shape is the draft's either way, only the budget differs
     assert faithful["aspect"] == final["aspect"] == "3:2"
 
@@ -66,43 +68,20 @@ def test_a_render_ceiling_holds_the_faithful_too(client):
 
 
 def test_square_is_untouched_by_either_rule(client):
-    spec = main.registry.models["cyberrealistic-illustrious"]
+    spec = main.registry.models["bas-anima"]
     faithful, final = finals(client, a_finished_shaped_draft(client, spec.key, "1:1"))
     assert (faithful["width"], faithful["height"]) == (final["width"], final["height"]) \
         == (spec.final.size, spec.final.size)
 
 
-def test_a_faithful_size_of_its_own_applies_to_the_faithful_alone(client):
-    """rinflanime's final is pinned at 1024 by what its txt2img does at 1536;
-    a Faithful composes nothing and was measured clean there, so it names a
-    budget of its own -- which the Finalize must not pick up, square or
-    shaped, or the duplication the 1024 guards against comes back."""
-    spec = main.registry.models["rinflanime"]
-    assert spec.final.size == 1024 and spec.faithful_size == 1536
-    faithful, final = finals(client, a_finished_shaped_draft(client, spec.key))
-    assert (faithful["width"], faithful["height"]) == (1856, 1280)
-    assert (final["width"], final["height"]) == (1280, 832)
-    faithful, final = finals(client, a_finished_shaped_draft(client, spec.key, "1:1"))
-    assert (faithful["width"], faithful["height"]) == (1536, 1536)
-    assert (final["width"], final["height"]) == (1024, 1024)
-
-
 def test_the_models_reply_says_what_a_faithful_honours(client):
     by_key = {m["key"]: m for m in client.get("/api/models").json()}
-    assert by_key["cyberrealistic-illustrious"]["aspect_size"] == 1024
-    assert by_key["cyberrealistic-illustrious"]["faithful_aspect_size"] is None
+    assert by_key["bas-anima"]["aspect_size"] == 1472
+    assert by_key["bas-anima"]["faithful_aspect_size"] is None
     assert by_key["qwen-image"]["faithful_aspect_size"] == by_key["qwen-image"]["aspect_size"] == 864
     # and at what budget: the final's, unless the model names a Faithful one
-    assert by_key["cyberrealistic-illustrious"]["faithful_size"] == by_key["cyberrealistic-illustrious"]["final_size"] == 1536
-    assert by_key["rinflanime"]["faithful_size"] == 1536 != by_key["rinflanime"]["final_size"]
-
-
-def test_only_rinflanime_names_a_faithful_size():
-    """A Faithful budget above the final's is a measured exception (nine
-    one-figure frames on that model), not a default; a model that gains one
-    gains the same measurement."""
-    reg = load_registry(CONFIG_PATH)
-    assert [k for k, m in reg.models.items() if m.faithful_size] == ["rinflanime"]
+    assert by_key["bas-anima"]["faithful_size"] == by_key["bas-anima"]["final_size"] == 1536
+    # a model naming a Faithful budget of its own is checked in tests/private/
 
 
 def test_only_qwen_image_declares_a_ceiling():

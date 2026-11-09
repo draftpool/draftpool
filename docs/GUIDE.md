@@ -73,7 +73,7 @@ times on a **MacBook Pro M4 Pro with 48GB**:
 | **Finalize** | 2.5 min | |
 | **Upscale to 2K** | 3 min | 3K and 4K take longer |
 | **Finalize+** | 3–4 min | the LLM reads the image first |
-| **Animate** | 12 min | for a 2-second clip |
+| **Animate** | 6–12 min | for a 2-second clip, MiniMax H3 to FusionX |
 
 A round of 4 prompts × 2 models × 2 seeds is 16 drafts, so expect several
 minutes before you have anything to choose from. Draw Things renders one image
@@ -289,28 +289,46 @@ anything that must stay: "keep her closed eyes and the cat on her shoulder".
 
 ## Animate
 
-Turns a still into a two-second clip using the Wan 2.1 FusionX video model.
+Turns a still into a short clip. The still is the first frame. Two video
+models are offered, and **MiniMax H3 is the default and the recommendation**:
 
-| you want | result |
-|---|---|
-| a **camera move**: push in, pan | works reliably |
-| **ambient motion**: wind in hair or cloth, moving light | works |
-| a **pose change**: standing up, a big arm movement | [doesn't work](DEEP-DIVE.md#why-a-pose-change-never-animates) |
+| model | clip lengths | a 2-second clip | a 5-second clip | pose changes |
+|---|---|---|---|---|
+| **MiniMax H3 + Turbo** | 1 to 5 s at 24 fps | about 6 min | about 14 min | yes |
+| **Wan 2.1 FusionX** | 1 to 5 s at 16 fps | about 12 min | about 30 min | no |
+
+H3 is about twice as fast, and it can change a pose: asked to stand up from a
+sofa, a seated figure does. Its motion is also livelier, since the same
+"gentle breeze" that stirs the hair on FusionX lifts a hem on H3, so ask for
+less than you want. It renders a soundtrack too, but Draw Things doesn't hand
+it back to the app, so clips are silent.
+
+H3 runs with its **Turbo LoRA**, and is hidden until that is installed
+([setup](SETUP.md#minimax-h3)). The LoRA brings a clip down from the model's
+usual 50 steps to 8, which makes it about four times faster for the same
+quality.
+
+| you want | FusionX | MiniMax H3 |
+|---|---|---|
+| a **camera move**: push in, pan | works reliably | not yet tried |
+| **ambient motion**: wind in hair or cloth, moving light | works | works, and stronger |
+| a **pose change**: standing up, a big arm movement | [doesn't work](DEEP-DIVE.md#why-a-pose-change-doesnt-animate-on-fusionx) | worked when tried: a seated figure stood up |
 
 Tips:
 
 - **Don't mention the camera unless you want it to move.** Even "the camera
   stays still" makes it move.
-- **The pose in the still matters.** Someone caught mid-stride will walk. For a
-  specific action, start from a still that already suggests it.
+- **The pose in the still matters**, on FusionX above all. Someone caught
+  mid-stride will walk. For a specific action on FusionX, start from a still
+  that already suggests it; for a pose change, use MiniMax H3.
 - **Ask for one kind of motion at a time.** Several at once in two seconds all
   come out weak.
 
 For *Improve with LLM*, use **qwen3-vl:8b**, which describes what is actually in
 the picture most accurately.
 
-Videos are always rendered at about 832×480, so there's no point upscaling a
-still before animating it.
+Videos are always rendered at about 832×480 (FusionX) or 832×512 (H3), so
+there's no point upscaling a still before animating it.
 
 ## Prompt length
 
@@ -325,8 +343,8 @@ background details take over.
 | Qwen Image 2512 | 400 | 800 |
 | Krea 2 Turbo | 350 | 700 |
 | Z-Image Turbo | 260 | 800 |
-| CyberRealistic Anima, WAI Illustrious | 240 | 700 |
-| LustrousMix Anima, PerfectDeliberate, CyberRealistic Illustrious, One Obsession, JANKU, RIN Flanime, FLUX.1 schnell | 240 | 600 |
+| CyberRealistic Anima | 240 | 700 |
+| LustrousMix Anima, FLUX.1 schnell, and any model you add from the Illustrious or Anima profile | 240 | 600 |
 | BAS+ Anima | 240 | 450 |
 
 Between the two numbers, the end of the prompt has less and less effect.
@@ -339,8 +357,8 @@ limit.
 
 ## Prompting the anime models
 
-The anime models (LustrousMix, BAS+, CyberRealistic Anima, WAI, CyberRealistic
-Illustrious, One Obsession, JANKU and RIN Flanime) were trained on images
+The anime models (LustrousMix, BAS+, CyberRealistic Anima, and any Illustrious
+or Anima model you add) were trained on images
 labelled with Danbooru tags, so they understand Danbooru's words best. Prompts
 are still written as sentences, because sentences can say who has what and
 where things are. A list of tags can't.
@@ -370,9 +388,8 @@ The one-line box under the prompt is for things you want kept *out* of the
 picture. It only appears when a selected model can use one: models running at
 CFG 1 can't.
 
-These models use negative prompts: LustrousMix, CyberRealistic Anima, WAI
-Illustrious, CyberRealistic Illustrious, One Obsession, JANKU, RIN Flanime,
-PerfectDeliberate, Juggernaut XL and Qwen Image. These don't: FLUX.2 klein,
+These models use negative prompts: LustrousMix, CyberRealistic Anima,
+Juggernaut XL, Qwen Image, and any model you add from a profile. These don't: FLUX.2 klein,
 FLUX.1 schnell, Z-Image Turbo, Krea 2 Turbo and BAS+ Anima, nor any model
 while its [speed LoRA](#speed-loras) is on.
 

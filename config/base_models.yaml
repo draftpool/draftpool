@@ -1,0 +1,125 @@
+# Settings for a model nobody here has measured, by its base model.
+#
+# scripts/add_civitai_model.py writes a config entry for a checkpoint you
+# imported into Draw Things yourself: the identity (file, label, Civitai
+# version) is the checkpoint's own, everything else is copied from the profile
+# below that matches its base model. Each profile is what the measured models
+# of that base agree on, so it is a sound starting point and not a
+# measurement of your checkpoint: sampler and cfg in particular differ between
+# finetunes of the same base, and the model's own Civitai card is the better
+# source for those two (docs/ADDING-A-MODEL.md).
+#
+#   civitai_base_models  Civitai's "Base Model" values this profile serves
+#   draw_things_version  the architecture Draw Things records for the import
+#                        (custom.json `version`); a mismatch is refused
+#   settings             a `models:` entry from config/models.yaml, minus
+#                        label, dt_filename and civitai_version_id
+
+profiles:
+  # Illustrious XL and its finetunes: SDXL architecture, Danbooru-trained.
+  illustrious:
+    civitai_base_models: ["Illustrious"]
+    draw_things_version: "sdxl_base_v0.9"
+    settings:
+      # Six Illustrious finetunes were measured here. Five are tag-style; all
+      # five use clip skip 2, a 768 draft at 14 steps (one at 10) and the same
+      # upscale, and four render their final at 1536 in 20 steps. The fifth
+      # holds its final at 1024 because at 1536 and 24 steps it drew the figure
+      # twice -- which is why the final here is 20 steps, not more. All six
+      # share the 1024 shape limit. Sampler: four of the six measured best on
+      # DPM++ 2M Karras, where Euler a, the family's usual recommendation, left
+      # a cyan cast and colour fringing; two measured best on Euler a. cfg 5 is
+      # the middle of the 4-6 they were measured at.
+      aspect_size: 1024
+      sampler: "DPM++ 2M Karras"
+      cfg: 5.0
+      clip_skip: 2
+      uses_negative_prompt: true
+      prompt_style: tags
+      prompt_guidance: |
+        Describe the picture in prose -- ordinary sentences, using Danbooru's
+        exact wording wherever it has a word for what you mean (1girl, twin
+        braids, from above, looking at viewer) and plain English wherever it does
+        not. Cover subject count first, then character and series when the
+        subject is a known character, appearance, clothing, expression and pose,
+        scene, lighting, composition, style. Say which subject has which feature
+        and where each thing is in sentences. No artist names.
+      prompt_budget: { full: 240, fading: 600 }
+      draft: { size: 768, steps: 14, cfg: 5.0, sampler: "DPM++ 2M Karras" }
+      final: { size: 1536, steps: 20, strength: 0.5 }
+      upscale: { size: 2048, steps: 20, strength: 0.3 }
+
+  # Anima (Cosmos 2.5 2B) and its finetunes.
+  anima:
+    civitai_base_models: ["Anima"]
+    draw_things_version: "cosmos2.5_2b"
+    settings:
+      # The LustrousMix Anima entry in config/models.yaml. Of the other Anima
+      # finetunes measured here, one shares its geometry exactly, one its
+      # shape limit and final, and one runs a smaller final (1408). DPM++ 2M
+      # Karras rendered pure noise on this base; keep Euler a. The
+      # quality opener is LustrousMix's; the negative is the part all three
+      # measured Anima entries share.
+      aspect_size: 1472
+      sampler: "Euler a"
+      cfg: 4.5
+      uses_negative_prompt: true
+      prompt_style: tags
+      quality_prefix: "masterpiece, best quality"
+      negative_prefix: "worst quality, low quality, censored, score_1, score_2, score_3"
+      prompt_guidance: |
+        Start every prompt with exactly "masterpiece, best quality" (no other
+        quality tags), then describe the picture in prose -- ordinary sentences,
+        about 60-90 words -- using Danbooru's exact wording wherever it has a
+        word for what you mean (1girl, twin braids, from above, looking at
+        viewer) and plain English wherever it does not. Cover subject count
+        first, then character and series when the subject is a known character,
+        appearance, clothing, expression and pose, scene, lighting, composition
+        and style. Say which subject has which feature and where each thing is
+        in sentences; that is what this form is for. Artist-style names are
+        allowed and effective. Only when the instruction actually asks for words
+        to appear in the picture, put those words in quotes; never invent any.
+        Every negative_prompt must start with "worst quality, low quality,
+        censored, score_1, score_2, score_3" and may append scene-specific tags
+        to avoid.
+      prompt_budget: { full: 240, fading: 600 }
+      draft: { size: 768, steps: 12, cfg: 4.5, sampler: "UniPC Trailing" }
+      final: { size: 1536, steps: 24, strength: 0.5 }
+      # the Anima Turbo LoRA worked on all three Anima finetunes it was tried
+      # on; the tick greys out until it is installed (docs/SETUP.md, LoRAs)
+      lora_options:
+        - key: turbo
+          label: "Anima Turbo (8 steps)"
+          file: "anima_turbo_lora_v0.2_lora_f16.ckpt"
+          negative_prompt: false
+          opener: "anime coloring"
+          civitai_version_id: 2979642
+          stages:
+            draft: { size: 1024, steps: 8, cfg: 1.0, sampler: "Euler a" }
+            final: { steps: 8, cfg: 1.0 }
+      # untiled, this base renders nothing above ~2.4MP
+      upscale: { size: 2048, steps: 18, strength: 0.3 }
+      tiled_diffusion: true
+      upscale_seconds: 214
+
+  # SDXL 1.0 and its photographic and general finetunes.
+  sdxl:
+    civitai_base_models: ["SDXL 1.0"]
+    draw_things_version: "sdxl_base_v0.9"
+    settings:
+      # The Juggernaut XL Ragnarok entry in config/models.yaml, the measured
+      # plain-SDXL model here.
+      aspect_size: 1024
+      sampler: "DPM++ 2M Karras"
+      cfg: 5.0
+      uses_negative_prompt: true
+      prompt_style: prose
+      prompt_guidance: |
+        Subject and appearance first, then setting, then lighting, then
+        photographic language (camera body, lens and aperture, film stock,
+        e.g. "85mm f/1.8, Portra 400"). Comma-separated keyword phrases are
+        preferred over full sentences.
+      prompt_budget: { full: 600, fading: 900 }
+      draft: { size: 768, steps: 14 }
+      final: { size: 1024, steps: 32, strength: 0.5 }
+      upscale: { size: 2048, steps: 24, strength: 0.35 }

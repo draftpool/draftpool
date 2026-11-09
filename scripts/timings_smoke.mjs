@@ -16,19 +16,12 @@
  * that a finished job redraws all of them with the new numbers without
  * resetting what was picked.
  */
-const require = (await import("node:module")).createRequire(import.meta.url);
 const { spawn, execFileSync } = await import("node:child_process");
 const fs = await import("node:fs");
 const os = await import("node:os");
 const path = await import("node:path");
 
-const PUPPETEER = [
-  "/opt/homebrew/lib/node_modules/website-scraper-puppeteer/node_modules/puppeteer",
-  "puppeteer",
-];
-let puppeteer = null;
-for (const p of PUPPETEER) { try { puppeteer = require(p); break; } catch {} }
-if (!puppeteer) { console.error("puppeteer not found; npm i -g puppeteer"); process.exit(2); }
+const { launchBrowser } = await import("./smoke_browser.mjs");
 
 const PORT = process.argv[2] || "8574";
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -130,7 +123,7 @@ const fmtWait = sec => {
 const oneDraft = DRAFT_RATE * timed.draft.steps;
 const oneUpscale = UPSCALE_RATE * timed.upscale.steps;
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+const browser = await launchBrowser();
 const page = await browser.newPage();
 await page.setViewport({ width: 1400, height: 1000 });
 const errors = [];

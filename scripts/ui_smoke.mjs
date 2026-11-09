@@ -4,9 +4,8 @@
  *   node scripts/ui_smoke.mjs [port] [session-id]
  *
  * Needs a running server with at least ten finished images in the session it
- * is pointed at, and puppeteer available (this looks for the copy that comes
- * with a global website-scraper-puppeteer, and falls back to a plain
- * `puppeteer` resolvable from here).
+ * is pointed at, and puppeteer available (smoke_browser.mjs says which copy,
+ * and which Chrome, it uses).
  *
  * It exists because the Edit dialog decides four things at once -- which modes
  * are offered, which engine they mean, which model runs it and at what
@@ -15,14 +14,7 @@
  * engine read before the mode fallback, and controls that stayed visible
  * because an author `display` beats the browser's own rule for [hidden].
  */
-const require = (await import("node:module")).createRequire(import.meta.url);
-const PUPPETEER = [
-  "/opt/homebrew/lib/node_modules/website-scraper-puppeteer/node_modules/puppeteer",
-  "puppeteer",
-];
-let puppeteer = null;
-for (const path of PUPPETEER) { try { puppeteer = require(path); break; } catch {} }
-if (!puppeteer) { console.error("puppeteer not found; npm i -g puppeteer"); process.exit(2); }
+const { launchBrowser } = await import("./smoke_browser.mjs");
 
 const PORT = process.argv[2] || "8500";
 const SESSION = process.argv[3] || "";
@@ -34,7 +26,7 @@ const check = (name, ok, extra = "") => {
 };
 
 (async () => {
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+  const browser = await launchBrowser();
   const page = await browser.newPage();
   await page.setViewport({ width: 1400, height: 1000 });
   const errors = [];

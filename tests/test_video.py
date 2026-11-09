@@ -155,3 +155,18 @@ def test_clip_size_survives_extremes():
     assert max(w, h) <= 1024 and min(w, h) >= 256
     # degenerate input must not produce a zero or negative frame
     assert video.clip_size(0, 0, 832, 480) == (640, 640)
+
+
+def test_snap_frame_count_on_h3_grid():
+    # MiniMax H3 takes 17k+5 frames; one step is the shortest clip
+    assert video.snap_frame_count(73, 17, 5) == 73
+    assert video.snap_frame_count(124, 17, 5) == 124
+    assert video.snap_frame_count(80, 17, 5) == 73
+    assert video.snap_frame_count(0, 17, 5) == 22
+    for n in range(0, 250):
+        assert (video.snap_frame_count(n, 17, 5) - 5) % 17 == 0
+
+
+def test_clip_presets_are_nearest_to_whole_seconds():
+    assert video.clip_presets(16) == [17, 33, 49, 81]
+    assert video.clip_presets(24, 17, 5) == [22, 56, 73, 124]

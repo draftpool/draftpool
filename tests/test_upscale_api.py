@@ -22,9 +22,9 @@ from app.registry import CONFIG_PATH, load_registry
 from app.sessions import Store
 
 # bas-anima tiles the denoiser, so it offers 3072 and 4096 as well as 2048 and
-# can exercise the upper end; oneobsession does not, and stops at 2048.
+# can exercise the upper end; juggernaut-ragnarok does not, and stops at 2048.
 TILED = "bas-anima"
-UNTILED = "oneobsession"
+UNTILED = "juggernaut-ragnarok"
 
 
 @pytest.fixture
@@ -126,7 +126,7 @@ def test_a_stand_in_lends_its_own_ceiling_to_another_models_image(client):
 def test_a_stand_in_that_cannot_enlarge_it_either_is_still_refused(client):
     """The stand-in is not a way round the capability rule, only around a gap."""
     g = an_image(client, kind="upscale", model_key=UNTILED, size=2048)
-    resp = upscale(client, g, size=3072, via="perfectdeliberate")
+    resp = upscale(client, g, size=3072, via="flux2-klein")
     assert resp.status_code == 400
     assert "renders at most 2048px" in resp.json()["detail"]
 
