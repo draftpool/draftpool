@@ -156,9 +156,10 @@ What each can and can't do is in the [guide](GUIDE.md#animate).
     uv run python scripts/probe.py
     ```
 
-    It lists the model files Draw Things has. If a filename differs from
-    `dt_filename` in `config/models.yaml`, update it there. Restart the server
-    after any change to that file; it's only read at startup.
+    It checks the API answers and lists which models it found and which are
+    missing; it renders nothing (add `--render` for one tiny test image).
+    Nothing needs editing: the app finds each model's file whatever variant
+    you downloaded, and hides the ones that aren't there.
 
 ### LoRAs
 
@@ -257,9 +258,13 @@ cp config/models.yaml ~/models.yaml.mine
 diff ~/models.yaml.mine config/models.yaml
 ```
 
-**A model that disappears after an update** was dropped from the shipped
-list. If you still have it in Draw Things, add it back with
-`scripts/add_civitai_model.py` and its Civitai version id. If its settings
+**A model an update stops shipping stays yours.** If it's still installed in
+Draw Things, the server adds it back to `config/models.private.yaml` the first
+time it starts after the update. It keeps its old name, its settings and your
+pictures made with it, and the server's log says which models it kept. If you
+delete such an entry, it stays deleted. This needs the git clone, because the
+old settings come from its history. After a zip update, add the model back with
+`scripts/add_civitai_model.py` and its Civitai version id; if its settings
 were measured here, you get exactly those again.
 
 There's no way to downgrade the database. To go back to an older version, go

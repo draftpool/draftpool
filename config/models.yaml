@@ -1,6 +1,7 @@
 # Model registry for the image pipeline.
-# dt_filename must match the model file name exactly as shown in Draw Things
-# (Settings > Models, or via scripts/probe.py which lists what the API reports).
+# dt_filename names the model file Draw Things writes. A different quantisation
+# of the same model is matched at startup (Registry.resolve_installed), so an
+# install never edits it; scripts/probe.py shows what was found.
 # Leave dt_filename empty to hide a model from the UI.
 #
 # cfg maps to cfg_scale in the Draw Things API (guidance for FLUX-family models).

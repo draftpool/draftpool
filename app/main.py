@@ -32,7 +32,7 @@ from .detailer import (
     refine_faces,
     repaint_region,
 )
-from . import civitai, dims, esrgan, video
+from . import civitai, dims, esrgan, migrate, video
 from .dt_client import DrawThingsClient, DrawThingsStalled
 from . import vocab
 from .llm import META_TAGS, LlmError, OllamaClient, image_for_vision
@@ -79,6 +79,9 @@ VISION_REQUIRED = (
     "for this action; text-only models are fine for Enrich, Amend and Refine."
 )
 
+# a model an earlier release shipped and this one dropped comes back under its
+# old key before anything reads the config (app/migrate.py); never fatal
+migrate.run_on_startup()
 registry = load_registry()
 registry.resolve_installed()
 store = Store()

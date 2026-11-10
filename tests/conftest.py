@@ -37,3 +37,7 @@ os.environ.setdefault("DRAFTPOOL_CONFIGURED_DATA_DIR", _configured_data_dir())
 _TMP = tempfile.mkdtemp(prefix="draftpool-tests-")
 atexit.register(shutil.rmtree, _TMP, ignore_errors=True)
 os.environ["DRAFTPOOL_DATA_DIR"] = _TMP
+# importing app.main runs the startup migration, which writes the checkout's
+# config/models.private.yaml; a test run must never do that (test_migrate
+# drives it on its own throwaway clone)
+os.environ["DRAFTPOOL_NO_MIGRATE"] = "1"

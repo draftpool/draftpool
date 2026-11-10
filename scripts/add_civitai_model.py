@@ -40,34 +40,15 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from app.private_models import TUNED_PATH, append_entry as _append_entry, dump_entry, load_tuned  # noqa: E402,F401
 from app.registry import CONFIG_PATH, load_registry, match_filename, private_path  # noqa: E402
 
 PROFILES_PATH = CONFIG_PATH.parent / "base_models.yaml"
-TUNED_PATH = CONFIG_PATH.parent / "tuned_models.yaml"
 # the profile name an entry gets when its version was measured here
 MEASURED = "measured"
 
-HEADER = """\
-# Models this checkout adds to the ones that ship.
-#
-# Same format as the `models` section of models.yaml, loaded after it
-# (app/registry.py, private_path). scripts/add_civitai_model.py appends to it;
-# entries can also be written by hand. It is never published and never
-# overwritten by an update, so your models survive one.
-
-models:
-"""
-
-
 def load_profiles(path: Path = PROFILES_PATH) -> dict:
     return yaml.safe_load(path.read_text())["profiles"]
-
-
-def load_tuned(path: Path = TUNED_PATH) -> dict[int, dict]:
-    """Settings measured on exact checkpoints, by Civitai version id."""
-    if not path.is_file():
-        return {}
-    return {int(k): v for k, v in ((yaml.safe_load(path.read_text()) or {}).get("tuned") or {}).items()}
 
 
 def resolve(profiles: dict, tuned: dict[int, dict], imported: dict, base: str | None,
@@ -182,28 +163,6 @@ def build_entry(imported: dict, profile_key: str, profiles: dict,
     return key or slug(Path(imported["file"]).stem.removesuffix("_f16")), entry
 
 
-class _Block(str):
-    pass
-
-
-def _dump(entry: dict) -> str:
-    class D(yaml.SafeDumper):
-        pass
-
-    D.add_representer(_Block, lambda d, s: d.represent_scalar("tag:yaml.org,2002:str", s, style="|"))
-
-    def blocks(v):
-        # multi-line text (prompt_guidance) as a | block at any depth, as the
-        # hand-written config has it, rather than one long quoted line
-        if isinstance(v, dict):
-            return {k: blocks(x) for k, x in v.items()}
-        if isinstance(v, list):
-            return [blocks(x) for x in v]
-        return _Block(v) if isinstance(v, str) and "\n" in v else v
-
-    return yaml.dump(blocks(entry), Dumper=D, sort_keys=False, allow_unicode=True, width=88)
-
-
 def entry_text(key: str, entry: dict, profile_key: str, civitai: dict | None) -> str:
     if profile_key == MEASURED:
         lines = [f"  # Added {date.today().isoformat()} by scripts/add_civitai_model.py with the "
@@ -217,18 +176,15 @@ def entry_text(key: str, entry: dict, profile_key: str, civitai: dict | None) ->
     if civitai and civitai.get("model"):
         who = f", by {civitai['creator']}" if civitai.get("creator") else ""
         lines.append(f"  # {civitai.get('model')} {civitai.get('version')}{who}.")
-    body = "".join("    " + l + "\n" if l else "\n" for l in _dump(entry).splitlines())
+    body = "".join("    " + l + "\n" if l else "\n" for l in dump_entry(entry).splitlines())
     return "\n".join(lines) + f"\n  {key}:\n" + body
 
 
 def append_entry(path: Path, key: str, text: str) -> None:
-    current = path.read_text() if path.is_file() else HEADER
-    if re.search(rf"(?m)^  {re.escape(key)}:\s*$", current):
-        raise SystemExit(f"{path.name} already has a model {key!r}; choose another with --key")
-    current = re.sub(r"(?m)^models:[ \t]*\{\}[ \t]*$", "models:", current)
-    if not re.search(r"(?m)^models:[ \t]*$", current):
-        current = current.rstrip("\n") + "\n\nmodels:\n"
-    path.write_text(current.rstrip("\n") + "\n\n" + text)
+    try:
+        _append_entry(path, key, text)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
 
 
 def main(argv: list[str] | None = None) -> int:
