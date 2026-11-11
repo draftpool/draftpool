@@ -14,8 +14,11 @@ import logging
 import shutil
 import subprocess
 import tempfile
+import wave
 from pathlib import Path
+from typing import NamedTuple, Optional
 
+import numpy as np
 from PIL import Image
 
 # clip_size lives with the other grid geometry now that generation shapes
@@ -33,6 +36,13 @@ log = logging.getLogger(__name__)
 _MP4_ARGS = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
              "-movflags", "+faststart",
              "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2"]
+
+
+class Soundtrack(NamedTuple):
+    """A clip's sound: float [channels, samples] in -1..1, at `rate` per second."""
+
+    samples: np.ndarray
+    rate: int
 
 
 def ffmpeg_available() -> bool:
@@ -72,32 +82,58 @@ def frame_size(frames: list[bytes]) -> tuple[int, int]:
         return im.size
 
 
-def assemble(frames: list[bytes], fps: int, out_dir: Path, stem: str) -> Path:
+def assemble(
+    frames: list[bytes], fps: int, out_dir: Path, stem: str,
+    audio: Optional[Soundtrack] = None,
+) -> Path:
     """Write frames as a clip; returns the path actually written.
 
-    Extension is .mp4 when ffmpeg is present, .webp otherwise.
+    Extension is .mp4 when ffmpeg is present, .webp otherwise. The soundtrack
+    goes into the mp4 only: WebP has no audio, and a soundtrack ffmpeg will not
+    take costs the sound, not the clip.
     """
     if not frames:
         raise ValueError("no frames to assemble")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if ffmpeg_available():
+        out = out_dir / f"{stem}.mp4"
+        if audio is not None:
+            try:
+                return _write_mp4(frames, fps, out, audio)
+            except Exception as exc:  # noqa: BLE001 - a silent clip beats none
+                log.warning("ffmpeg could not add the soundtrack (%s); writing it silent", exc)
         try:
-            return _write_mp4(frames, fps, out_dir / f"{stem}.mp4")
+            return _write_mp4(frames, fps, out)
         except Exception as exc:  # noqa: BLE001 - fall back rather than fail the job
             log.warning("ffmpeg assembly failed (%s); falling back to webp", exc)
     return _write_webp(frames, fps, out_dir / f"{stem}.webp")
 
 
-def _write_mp4(frames: list[bytes], fps: int, out: Path) -> Path:
+def _write_wav(audio: Soundtrack, out: Path) -> None:
+    pcm = (np.clip(audio.samples, -1.0, 1.0).T * 32767).astype("<i2")
+    with wave.open(str(out), "wb") as w:
+        w.setnchannels(audio.samples.shape[0])
+        w.setsampwidth(2)
+        w.setframerate(audio.rate)
+        w.writeframes(pcm.tobytes())
+
+
+def _write_mp4(
+    frames: list[bytes], fps: int, out: Path, audio: Optional[Soundtrack] = None
+) -> Path:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         for i, raw in enumerate(frames):
             (tmp / f"f{i:05d}.png").write_bytes(raw)
+        sound: list[str] = []
+        if audio is not None:
+            _write_wav(audio, tmp / "audio.wav")
+            sound = ["-i", str(tmp / "audio.wav"), "-c:a", "aac", "-b:a", "192k"]
         proc = subprocess.run(
             ["ffmpeg", "-y", "-loglevel", "error",
              "-framerate", str(fps), "-i", str(tmp / "f%05d.png"),
-             *_MP4_ARGS, str(out)],
+             *sound, *_MP4_ARGS, str(out)],
             capture_output=True, text=True, timeout=300,
         )
     if proc.returncode != 0 or not out.is_file():

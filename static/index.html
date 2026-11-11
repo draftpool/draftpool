@@ -3531,10 +3531,11 @@ function updateCardStatus(card, id, status, error, duration, extra) {
       // is an image and animates in <img> only -- <video> would show nothing
       box.innerHTML = card.dataset.videoExt === "webp"
         ? `<img src="/api/video/${id}?t=${Date.now()}" alt="clip">`
-        // loop muted inline so a card full of clips is not a wall of noise;
+        // not muted: a card only plays when its play button is pressed, and an
+        // H3 clip has sound (the review pane, which autoplays, is muted);
         // the poster is the first frame, saved as the generation's png
         : `<video src="/api/video/${id}?t=${Date.now()}" poster="/images/${session.id}/${id}.png"
-            loop muted playsinline controls preload="metadata"></video>`;
+            loop playsinline controls preload="metadata"></video>`;
       return;
     }
     box.innerHTML = `<img src="/images/${session.id}/${id}.png?t=${Date.now()}" loading="lazy">`;
@@ -4596,7 +4597,8 @@ function reviewShow(i) {
   if (stage.dataset.src !== src) {
     stage.dataset.src = src;
     stage.innerHTML = media.tagName === "VIDEO"
-      // muted so a run of clips is not a wall of noise, as on the cards
+      // muted because it autoplays: a run of clips is not a wall of noise, and
+      // the player's own speaker button brings an H3 clip's sound back
       ? `<video src="${esc(src)}" poster="${esc(media.getAttribute("poster") || "")}"
           controls loop muted playsinline autoplay></video>`
       : `<img src="${esc(src)}" alt="">`;

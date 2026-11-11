@@ -84,6 +84,19 @@ follow.
 It also doesn't understand negatives, which is why "the camera stays still"
 makes the camera move: it acts on the words that are there.
 
+## Where an H3 clip's sound comes from
+
+Draw Things' API hands back an H3 clip's frames but not its soundtrack. It
+does save every clip to its own history, sound and all, so the app reads the
+sound from there once the frames arrive. That only works when Draw Things runs
+on the same Mac as the app; on another machine, clips are silent.
+
+A clip also comes out silent if its sound can't be found, for example when
+the clip is deleted from Draw Things' history while it renders, or a new
+Draw Things project is started meanwhile. The clip itself is unaffected. If
+macOS asks whether the app (or the Terminal running it) may access data from
+other apps, allow it: Draw Things' history is that data.
+
 ## The tag vocabulary in detail
 
 The [guide](GUIDE.md#prompting-the-anime-models) explains what the tag checks

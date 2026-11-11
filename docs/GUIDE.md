@@ -300,8 +300,9 @@ models are offered, and **MiniMax H3 is the default and the recommendation**:
 H3 is about twice as fast, and it can change a pose: asked to stand up from a
 sofa, a seated figure does. Its motion is also livelier, since the same
 "gentle breeze" that stirs the hair on FusionX lifts a hem on H3, so ask for
-less than you want. It renders a soundtrack too, but Draw Things doesn't hand
-it back to the app, so clips are silent.
+less than you want. It renders a soundtrack too, which plays when you press
+play on the clip's card; the review pane starts muted. The sound needs Draw
+Things on the same Mac ([why](DEEP-DIVE.md#where-an-h3-clips-sound-comes-from)).
 
 H3 runs with its **Turbo LoRA**, and is hidden until that is installed
 ([setup](SETUP.md#minimax-h3)). The LoRA brings a clip down from the model's

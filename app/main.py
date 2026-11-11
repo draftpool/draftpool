@@ -32,7 +32,7 @@ from .detailer import (
     refine_faces,
     repaint_region,
 )
-from . import civitai, dims, esrgan, migrate, video
+from . import civitai, dims, dt_audio, esrgan, migrate, video
 from .dt_client import DrawThingsClient, DrawThingsStalled
 from . import vocab
 from .llm import META_TAGS, LlmError, OllamaClient, image_for_vision
@@ -508,6 +508,16 @@ async def run_video_job(gen) -> None:
     num_frames = gen.num_frames or 33
     fps = gen.fps or spec.fps
     try:
+        # the HTTP reply drops the soundtrack, so it is read back from Draw
+        # Things' own history afterwards: note where that history stands now
+        # (see app/dt_audio.py). Only models with an audio stream have the
+        # second shift.
+        before = (
+            await asyncio.to_thread(dt_audio.snapshot)
+            if spec.shift_for_audio is not None
+            and dt_audio.reachable(registry.draw_things.host)
+            else None
+        )
         frames = await dt.img2video(
             init_png,
             prompt=gen.prompt,
@@ -538,8 +548,14 @@ async def run_video_job(gen) -> None:
         store.save_image(gen, frames[0])
         width, height = video.frame_size(frames)
         store.set_dimensions(gen.id, width, height)
+        audio = None
+        if before is not None:
+            audio = await dt_audio.soundtrack(before, len(frames), width, height, fps)
+            if audio is None:
+                log.warning("video %s: no soundtrack found in Draw Things' history", gen.id)
         path = video.assemble(
-            frames, fps, store.data_dir / "sessions" / gen.session_id, gen.id
+            frames, fps, store.data_dir / "sessions" / gen.session_id, gen.id,
+            audio=audio,
         )
         store.set_video_ext(gen.id, path.suffix.lstrip("."))
         duration = round(time.monotonic() - started, 1)

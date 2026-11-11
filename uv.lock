@@ -218,10 +218,11 @@ wheels = [
 
 [[package]]
 name = "draftpool"
-version = "1.2.0"
+version = "1.2.1"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "fpzip" },
     { name = "httpx" },
     { name = "numpy" },
     { name = "opencv-python-headless" },
@@ -244,6 +245,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "fpzip", specifier = ">=1.2.5" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "numpy", specifier = ">=2.5.2" },
     { name = "opencv-python-headless", specifier = ">=4.10,<5" },
@@ -277,6 +279,31 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8a/02/91e3416a8fdd715abb903a952a6bec7cdd8d14eed55d415fc8595524c319/fastapi-0.141.1.tar.gz", hash = "sha256:e8822fc40db1e1858054d7a949a888695bc9bdce70139178e33bd2871a453ca1", size = 425799, upload-time = "2026-07-29T17:18:05.568Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/03/10388a42375ee7e4ac9b94eb2c5c569c8b5795e377e701c9ac3ad63de890/fastapi-0.141.1-py3-none-any.whl", hash = "sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3", size = 131954, upload-time = "2026-07-29T17:18:04.364Z" },
+]
+
+[[package]]
+name = "fpzip"
+version = "1.2.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/4e/67b22af6c224488d31eefbba6759990d652a8815de5becf3f169fcc65de0/fpzip-1.2.5.tar.gz", hash = "sha256:b52895115ec068ae75c743a3f46e96f8b8cbe7b249afc31c97ce6019cc24a5a1", size = 38969, upload-time = "2025-03-19T21:29:45.984Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/ed/3141589fc8b8b7b10695ad31c032598f3d1ead37e3fc344a1aa15fcb9d1f/fpzip-1.2.5-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:42ffc28a654a4e685972e8269507699b0ec318342309f3d2184dd0428b7c8f4f", size = 143552, upload-time = "2025-03-19T21:29:13.736Z" },
+    { url = "https://files.pythonhosted.org/packages/16/89/2aa4801f59aff5227164560cf5c3681fe6f018f4c90f5b91789525c1195f/fpzip-1.2.5-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:668879d33906585ac08d18f1524df0fd714b00bf86f9224329681ec1a2e1f2ed", size = 132309, upload-time = "2025-03-19T21:29:14.756Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/d2/9e8eca1b538aa4e186a06fa2a4b586c02b31ed8b28bbe65bb1af3fa1b074/fpzip-1.2.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:add5750968f518e2f91f3bc0dc28bbc1b4720293c40a3d9293e2193efaa3c74f", size = 1021228, upload-time = "2025-03-19T21:29:16.21Z" },
+    { url = "https://files.pythonhosted.org/packages/58/cf/1070a82c88a89f441e1bbb65a676224847b98247403a03c04b0c49feb0fc/fpzip-1.2.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:908a6be7dd0918ec983dc3458c7f490b4209d7c040cceff05b454ce40794b24f", size = 1055858, upload-time = "2025-03-19T21:29:17.266Z" },
+    { url = "https://files.pythonhosted.org/packages/af/e9/92e0eacd8c3f95a1aed6982cf174a34c8f498e0b8375a5dededb75d7ada2/fpzip-1.2.5-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:aa9bd0a7cbc8b4c5b0517480040412d3f691a1c423bb9ef43cb720133dc4bb1f", size = 1039639, upload-time = "2025-03-19T21:29:18.453Z" },
+    { url = "https://files.pythonhosted.org/packages/82/18/47305f14e84c7bc56972741bc6a84f70a0562b64fe4b89096be625d2b1b3/fpzip-1.2.5-cp312-cp312-win32.whl", hash = "sha256:cae80609097ea0215ad43ec295497e1b0b703deed5fcde6db147a305c5e118bf", size = 98673, upload-time = "2025-03-19T21:29:19.983Z" },
+    { url = "https://files.pythonhosted.org/packages/be/14/de7c64ebf9d763dac302aca262e92d03e2bcb105f2e711fb7699fdb209ca/fpzip-1.2.5-cp312-cp312-win_amd64.whl", hash = "sha256:8f0a9c21e962ccb14f1948f38af3de66feb4eabb63be50b4d0a3df8be15ec0f2", size = 113017, upload-time = "2025-03-19T21:29:20.93Z" },
+    { url = "https://files.pythonhosted.org/packages/60/68/30e123850d5dca62e3f806b31fce8fa6a925ad4c7626f4674bf531143f54/fpzip-1.2.5-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:b091565142f537f052cd83e4efffbd0c131a15203114fac59d96061017a77ad3", size = 142247, upload-time = "2025-03-19T21:29:22.264Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/96/f7c7a59e8a4bf4b7662aee0eaef50bb9bb55f0046a3606f62e07c0a9eeff/fpzip-1.2.5-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:77f5634d75abc2619607d12e7ead2b8b97d76963f536393d778ef9a258d319a9", size = 130864, upload-time = "2025-03-19T21:29:23.581Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/d6/d4b335ad2a8268afceb5130339994dd67f6ebf1220094a7826b039da8da7/fpzip-1.2.5-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a4c40703741bbba1b1649b2a83d00695537082976a0608b73293691cc71cdef9", size = 1015314, upload-time = "2025-03-19T21:29:24.606Z" },
+    { url = "https://files.pythonhosted.org/packages/24/03/7ba47f80486fcbeb3fe79ab6a04966a0ca416d31a7ea08cc648ac4faf9df/fpzip-1.2.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4a9cab13700429f34b0803ebff70a2c8eb12e84f7ad2320ace39457bbea0a14d", size = 1054575, upload-time = "2025-03-19T21:29:25.893Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/d8/83db1a98a964a2dc9f370c442595e084d8e5e900781ed4aed5444888b5e0/fpzip-1.2.5-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:446d2cc396bd2044c682753792e86c3993992518f27b362a1a5ba109ae793e55", size = 1037353, upload-time = "2025-03-19T21:29:27.088Z" },
+    { url = "https://files.pythonhosted.org/packages/82/2b/c3cf98e5d7e96897187e3e347304df1764c9fbd59fced532401a0ae85aa5/fpzip-1.2.5-cp313-cp313-win32.whl", hash = "sha256:a7e9ada9119525ea7e2c05627e8f082a561df8b0d90a481aa367e40d659a83e3", size = 98414, upload-time = "2025-03-19T21:29:28.547Z" },
+    { url = "https://files.pythonhosted.org/packages/51/4a/d50efbd89716a18ab1f6affec7b7f7c4bdc362a240e39d964f3fd9f8a4bf/fpzip-1.2.5-cp313-cp313-win_amd64.whl", hash = "sha256:fe88686f13482109237e8984c1d3c12fa6445c110894cc766232deb01515f424", size = 112637, upload-time = "2025-03-19T21:29:29.437Z" },
 ]
 
 [[package]]

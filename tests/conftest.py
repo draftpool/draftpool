@@ -16,6 +16,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -41,3 +43,10 @@ os.environ["DRAFTPOOL_DATA_DIR"] = _TMP
 # config/models.private.yaml; a test run must never do that (test_migrate
 # drives it on its own throwaway clone)
 os.environ["DRAFTPOOL_NO_MIGRATE"] = "1"
+
+
+@pytest.fixture(autouse=True)
+def _no_draw_things_history(tmp_path, monkeypatch):
+    """A video job reads its soundtrack out of Draw Things' own project files;
+    a test must never open the real ones, nor wait on them."""
+    monkeypatch.setattr("app.dt_audio.DOCUMENTS", tmp_path / "draw-things")
