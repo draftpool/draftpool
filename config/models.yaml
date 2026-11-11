@@ -368,6 +368,8 @@ models:
     # attributes the checkpoint on the Civitai post, since a converted
     # .ckpt cannot be matched by hash. Update it with the weights.
     civitai_version_id: 2982979
+    # Draw Things' converted file, found under any name (ModelSpec.fingerprints)
+    fingerprints: ["2b9883a22277e17c6b3e15ecb371b000d1f440da607c057240f722828448d02b"]
     # Anima Base v1: Cosmos 2.5 (2B) architecture, NOT SDXL. SDXL LoRAs
     # (e.g. DMD2) are incompatible, and clip_skip does not apply.
     # Card: Euler a (or ER SDE), 24 steps, cfg 4-5.
@@ -629,6 +631,8 @@ models:
     # attributes the checkpoint on the Civitai post, since a converted
     # .ckpt cannot be matched by hash. Update it with the weights.
     civitai_version_id: 3004325
+    # Draw Things' converted file, found under any name (ModelSpec.fingerprints)
+    fingerprints: ["8118469a243134878ed9584af1ae96e44ef7d1e3b92b29d8eb93140b3588902d"]
     # its guidance below calls these trigger tags required, so they lead every
     # prompt, enriched or hand-written
     quality_prefix: "anime, anime_coloring, anime_screenshot, masterpiece, best quality"
@@ -728,6 +732,8 @@ models:
     # attributes the checkpoint on the Civitai post, since a converted
     # .ckpt cannot be matched by hash. Update it with the weights.
     civitai_version_id: 3136380
+    # Draw Things' converted file, found under any name (ModelSpec.fingerprints)
+    fingerprints: ["3701a3c10f08b3ad02683f1d8bd973c8f273725560d23bd409d0b737fd99032f"]
     # score tags are this model's own dial, per its guidance below
     quality_prefix: "masterpiece, best quality, highres, score_7, score_8, realistic"
     # as its guidance below requires, for generations that arrive without one

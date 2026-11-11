@@ -95,6 +95,12 @@ already made with it keep all their buttons.
 **Hide models that aren't installed in Draw Things** hides the greyed-out chips
 automatically. A model you install later appears by itself.
 
+A checkpoint you import into Draw Things yourself shows up after a page
+refresh, set up for its kind of model. Its **Civitai** column then has a field:
+paste the version id, the AIR or the SHA256 from the model's Civitai page and
+press **Set**. That credits the model when you publish, and corrects its
+settings when they were guessed wrong; the message says which it did.
+
 ## Steps
 
 Steps are how many passes the model makes over an image. More steps take longer

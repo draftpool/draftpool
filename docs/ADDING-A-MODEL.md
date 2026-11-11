@@ -26,9 +26,12 @@ already defined in the app: install them in Draw Things
 
 What it doesn't take:
 
-- **Other base models**, among them Pony, NoobAI, SD 1.5, FLUX and the newer
+- **Other base models**, among them SD 1.5, FLUX and the newer
   architectures. No model of those bases was measured here, so there's no
-  profile to start from. For FLUX, Z-Image, Krea 2 and Qwen Image, the app
+  profile to start from, and the server leaves them out. Pony and NoobAI are
+  SDXL underneath, so the server does add them, with its SDXL guess (below);
+  the add script refuses them unless you name a profile with `--base`. For
+  FLUX, Z-Image, Krea 2 and Qwen Image, the app
   already includes a model from Draw Things' catalogue. Anything else Draw
   Things can import can be [measured](#measuring-a-model-on-your-machine)
   instead.
@@ -37,35 +40,45 @@ What it doesn't take:
   ([setup](SETUP.md#loras)).
 - **Video models**. Both are already defined, as above.
 
-1. **Download the checkpoint** from its Civitai page, and note its **version
-   id**: the number after `modelVersionId=` in the page's address once the
-   version you want is selected.
+1. **Download the checkpoint** from its Civitai page.
 2. **Import it into Draw Things**: **Models list → Manage → Import Model**.
-   The file can have any name.
-3. **List what the app doesn't use yet:**
-
-   ```bash
-   uv run python scripts/add_civitai_model.py
-   ```
-
-4. **Add it**, with the file name from that list and the version id:
-
-   ```bash
-   uv run python scripts/add_civitai_model.py <file> --civitai <version id>
-   ```
-
-5. **Restart the server.** The model appears in the composer's model row.
+   Any name will do.
+3. **Restart the server.** The model appears in the composer's model row, and
+   the server's log names what it added.
 
 What the entry gets:
 
-- **Its base model's settings**, from `config/base_models.yaml`: what the
+- **Settings measured on that exact version**, when it is one of the
+  versions measured here individually (`config/tuned_models.yaml`), and its
+  Civitai version for the credit when you publish. The app recognises the
+  weights themselves, so the file's name doesn't matter.
+- **Otherwise its kind's settings**, from `config/base_models.yaml`: what the
   models of that base measured here agree on. A sound start, not a measurement
-  of your checkpoint. Civitai's page says which base it is.
-- **Or settings measured on that exact version**, when it is one of the
-  versions measured here individually (`config/tuned_models.yaml`). The script
-  says which of the two it used.
-- **Credit when you publish**: the version id is what attributes the
-  checkpoint on Civitai.
+  of your checkpoint. Draw Things says whether it is an Anima or an SDXL
+  model; an SDXL one whose name says *Illustrious* or *Noob* gets the
+  Illustrious settings, and any other the plain SDXL ones.
+
+A model the app already has, imported again under another name, is the same
+model: it is not added a second time.
+
+The server looks at each import once, on the first start after it, and from
+then on uses the entry in `config/models.private.yaml`. To set one up
+yourself instead -- when the guess is wrong (an Illustrious model whose name
+doesn't say so), or to credit the checkpoint when you publish -- delete the
+entry the server added, then name the version the way its Civitai page shows
+it:
+
+```bash
+uv run python scripts/add_civitai_model.py                     # what the app doesn't use
+uv run python scripts/add_civitai_model.py <file> --air "urn:air:sdxl:checkpoint:civitai:1307857@3313575"
+uv run python scripts/add_civitai_model.py <file> --hash <SHA256 from the page>
+uv run python scripts/add_civitai_model.py <file> --civitai <version id>
+```
+
+The AIR is under the version's details, with a copy button; the SHA256 is the
+**Hash** row, and it is the hash of the file you downloaded, not of Draw
+Things' converted copy. The version id is the number after `modelVersionId=`
+in the page's address. Restart the server afterwards.
 
 | option | use |
 |---|---|

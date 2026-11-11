@@ -12,6 +12,9 @@
 #   civitai_base_models  Civitai's "Base Model" values this profile serves
 #   draw_things_version  the architecture Draw Things records for the import
 #                        (custom.json `version`); a mismatch is refused
+#   name_hints           where two profiles share an architecture, words in the
+#                        import's name that mean this one; the profile without
+#                        hints takes the rest (app/private_models.class_of)
 #   settings             a `models:` entry from config/models.yaml, minus
 #                        label, dt_filename and civitai_version_id
 
@@ -20,6 +23,8 @@ profiles:
   illustrious:
     civitai_base_models: ["Illustrious"]
     draw_things_version: "sdxl_base_v0.9"
+    # NoobAI is an Illustrious finetune; the sdxl profile takes unnamed SDXL
+    name_hints: ["illustrious", "noob"]
     settings:
       # Six Illustrious finetunes were measured here. Five are tag-style; all
       # five use clip skip 2, a 768 draft at 14 steps (one at 10) and the same

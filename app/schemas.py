@@ -215,6 +215,12 @@ class ModelSpec(BaseModel):
     # the safetensors on the model page -- so it is transcribed from the model
     # page URL, and stays None for anything that did not come from Civitai.
     civitai_version_id: Optional[int] = None
+    # The weights' fingerprint in Draw Things' converted file
+    # (app/private_models.fingerprint), so the model is found under whatever
+    # name it was imported as: the name follows the download, and Civitai and
+    # the setup script name the same version differently. Read once per
+    # import, on the start after it (app/migrate.py).
+    fingerprints: list[str] = []
     draft: StageSpec
     final: StageSpec
     upscale: StageSpec
@@ -542,6 +548,12 @@ class ModelEnabledRequest(BaseModel):
     """Whether a model appears in the composer chips and the pickers."""
 
     enabled: bool
+
+
+class CivitaiRefRequest(BaseModel):
+    """Which Civitai version a model is: its id, AIR, page address or SHA256."""
+
+    ref: str
 
 
 class HideUninstalledRequest(BaseModel):

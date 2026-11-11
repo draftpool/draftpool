@@ -145,6 +145,13 @@ class Registry(BaseModel):
     # rebuilt from all three inputs when it does
     step_overrides: dict[str, dict[str, int]] = {}
     lora_choices: dict[str, dict[str, bool]] = {}
+    # the models.private.yaml entries: the user's own, which the settings
+    # dialog may change (a Civitai version given there), unlike shipped ones
+    private_keys: set[str] = set()
+    # model key -> the installed file its fingerprint was found in, for a
+    # model imported under another name than its entry's; recorded once by
+    # app/migrate.wire_installed_models and set here by the server
+    file_aliases: dict[str, str] = {}
 
     def model_or_raise(self, key: str) -> ModelSpec:
         spec = self.models.get(key)
@@ -352,6 +359,8 @@ class Registry(BaseModel):
         )
         for spec in self.models.values():
             found = match_filename(spec.dt_filename, files)
+            if not found and self.file_aliases.get(spec.key) in files:
+                found = self.file_aliases[spec.key]
             spec.installed = found is not None
             if found and found != spec.dt_filename:
                 log.info("model %s: using %s for %s", spec.key, found, spec.dt_filename)
@@ -497,6 +506,9 @@ def load_registry(path: Path = CONFIG_PATH, *, lora_options: bool = True) -> Reg
         video_models=video_models,
         upscale_sizes=sorted(raw.get("upscale_sizes") or [2048]),
     )
+    extra = private_path(path)
+    if extra.is_file():
+        registry.private_keys = set((yaml.safe_load(extra.read_text()) or {}).get("models") or {})
     # options take their defaults until the settings are laid over them
     if lora_options:
         registry._recompute_stages()

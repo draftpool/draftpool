@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.registry import CONFIG_PATH, load_registry
 from app.sessions import Store
 
 MODEL = "bas-anima"
@@ -45,6 +46,13 @@ def client(tmp_path, monkeypatch, ran):
     # harness concern only.
     monkeypatch.setattr(main, "job_queue", asyncio.Queue())
     monkeypatch.setattr(main, "subscribers", {})
+    # every model installed, whatever this machine's Draw Things has: these
+    # tests are about the API, and resolve_installed() would rescan the real folder
+    reg = load_registry(CONFIG_PATH)
+    for spec in reg.models.values():
+        spec.installed = True
+    monkeypatch.setattr(main, "registry", reg)
+    monkeypatch.setattr(type(reg), "resolve_installed", lambda self: None)
     with TestClient(main.app) as c:
         yield c
 

@@ -26,6 +26,11 @@ def settings(tmp_path):
 def client(tmp_path, monkeypatch):
     """The app against a throwaway store, settings file and registry."""
     reg = load_registry(CONFIG_PATH)
+    # every model installed, whatever this machine's Draw Things has: these
+    # tests are about the API, and resolve_installed() would rescan the real folder
+    for spec in reg.models.values():
+        spec.installed = True
+    monkeypatch.setattr(type(reg), "resolve_installed", lambda self: None)
     monkeypatch.setattr(main, "store", Store(tmp_path))
     monkeypatch.setattr(main, "settings_store", SettingsStore(tmp_path))
     monkeypatch.setattr(main, "registry", reg)

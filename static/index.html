@@ -616,7 +616,7 @@
     align-self: center;
   }
   #helpBtn:hover, #stepsBtn:hover, #renameBtn:not(:disabled):hover { color: var(--accent); border-color: var(--accent); }
-  #stepsDlg { max-width: 680px; padding: 20px 24px; }
+  #stepsDlg { max-width: 860px; padding: 20px 24px; }
   #stepsDlg h2 { font-size: 16px; margin: 0 0 6px; }
   #stepsDlg table { border-collapse: collapse; width: 100%; margin-top: 12px; }
   #stepsDlg th {
@@ -633,6 +633,9 @@
   #stepsDlg tr.off td.name { color: var(--muted); }
   #stepsDlg td.loras label { display: block; font-size: 12px; white-space: nowrap; }
   #stepsDlg td.loras input:disabled + span { color: var(--muted); }
+  #stepsDlg td.civitai { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  #stepsDlg td.civitai .civitaiRef { width: 150px; font-size: 12px; padding: 3px 6px; }
+  #stepsDlg td.civitai .civitaiSet { font-size: 12px; padding: 3px 8px; }
   #stepsDlg .tickLine {
     display: flex; align-items: center; gap: 7px; margin: 10px 0 2px;
     font-size: 13px; color: var(--text); cursor: pointer;
@@ -849,7 +852,10 @@
     The shipped numbers are measured per model — most of them are the point where more steps stopped changing the picture, and
     a few models get <b>worse</b> with more — so treat them as the considered answer and change one when your own eyes disagree.
     Steps cost time roughly in proportion, and drafts are the ones you make dozens of.
-    Blank or <b>reset</b> puts a value back to what the model ships with; a changed number is shown in blue.</p>
+    Blank or <b>reset</b> puts a value back to what the model ships with; a changed number is shown in blue.
+    A model you imported yourself is set up for its kind on the first start after; give it its <b>Civitai</b> version
+    — the id, the AIR or the SHA256 from its page — to credit it when you publish, and to correct its settings
+    if it was guessed wrong.</p>
   <div id="stepsRows"></div>
   <div id="videoRows"></div>
   <p class="hint">A single final can be given more steps without changing anything here: type a number in the small box beside <b>Finalize</b> on the card.</p>
@@ -986,6 +992,40 @@ function nameCell(m) {
     m.available ? "" : ` <span class="unavail">not installed</span>`}</td>`;
 }
 
+// Which Civitai version a model is: what credits it when you publish. A model
+// you added (or the server set up from an import) may not know it yet; it
+// takes any form the model's page shows, and the server says what that
+// changed -- the credit, and sometimes the settings (PUT .../civitai).
+function civitaiCell(m) {
+  if (m.civitai_version_id) {
+    return `<td class="civitai" title="Credited as this Civitai version when you publish">v${m.civitai_version_id}</td>`;
+  }
+  if (!m.can_identify) return `<td class="civitai"></td>`;
+  return `<td class="civitai"><input type="text" class="civitaiRef" spellcheck="false"
+      placeholder="id, AIR or SHA256"
+      title="From the model's Civitai page: the number after modelVersionId= in the address, the AIR (copy button under the details), or the Hash row (SHA256 of the file you downloaded). It credits the model when you publish; a version measured here also brings its settings, and an Illustrious model set up as plain SDXL gets the Illustrious ones.">
+    <button class="civitaiSet">Set</button></td>`;
+}
+
+async function saveCivitai(key, row) {
+  const input = row.querySelector(".civitaiRef"), btn = row.querySelector(".civitaiSet");
+  const ref = input.value.trim();
+  if (!ref) { input.focus(); return; }
+  btn.disabled = true; btn.textContent = "…";
+  try {
+    const res = await api(`/api/models/${encodeURIComponent(key)}/civitai`,
+      { method: "PUT", body: { ref } });
+    toast(res.message);
+    // the settings may have changed with it (steps, sizes, prompt style), so
+    // everything that reads the model is redrawn from the server's answer
+    MODELS = await api("/api/models");
+    renderModelChips();
+  } catch (e) {
+    toast("Could not set the Civitai version: " + e.message);
+  }
+  renderModelsTable();
+}
+
 // One tick per optional LoRA the model offers (LoraOption in app/schemas.py).
 // Ticking one changes more than the LoRA -- an accelerator brings its own
 // steps and cfg, and at CFG 1 the negative prompt goes -- so the row's step
@@ -1053,11 +1093,12 @@ function renderModelsTable() {
       <td>${stepsInput(m, "draft")}</td>
       <td>${stepsInput(m, "final")}</td>
       ${lorasCell(m)}
+      ${civitaiCell(m)}
       <td><button class="rowReset" ${atDefaultSteps(m) ? "disabled" : ""}
         title="Back to ${m.draft.default_steps} draft / ${m.final.default_steps} final">reset</button></td>
     </tr>`).join("");
   $("#stepsRows").innerHTML =
-    `<table><thead><tr><th></th><th>model</th><th>draft</th><th>final</th><th>LoRA</th><th></th></tr></thead>
+    `<table><thead><tr><th></th><th>model</th><th>draft</th><th>final</th><th>LoRA</th><th>Civitai</th><th></th></tr></thead>
      <tbody>${rows}</tbody></table>`;
   // video models get a tick and nothing else: their step count is part of a
   // tuned pair (see config/models.yaml) and is not offered here
@@ -1071,6 +1112,10 @@ function renderModelsTable() {
     i.onchange = () => saveSteps(i.closest("tr").dataset.key));
   $("#stepsRows").querySelectorAll(".rowReset").forEach(b =>
     b.onclick = () => saveSteps(b.closest("tr").dataset.key, true));
+  $("#stepsRows").querySelectorAll(".civitaiSet").forEach(b =>
+    b.onclick = () => saveCivitai(b.closest("tr").dataset.key, b.closest("tr")));
+  $("#stepsRows").querySelectorAll(".civitaiRef").forEach(i =>
+    i.onkeydown = (e) => { if (e.key === "Enter") saveCivitai(i.closest("tr").dataset.key, i.closest("tr")); });
   $("#stepsRows").querySelectorAll(".loraTick").forEach(t =>
     t.onchange = () => saveLora(t.closest("tr").dataset.key, t.dataset.option, t.checked));
   $("#stepsDlg").querySelectorAll(".modelTick").forEach(t =>

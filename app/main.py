@@ -6,6 +6,7 @@ Run with:  uv run uvicorn app.main:app --port 8500
 from __future__ import annotations
 
 import asyncio
+import os
 import base64
 import json
 import logging
@@ -36,6 +37,7 @@ from . import civitai, dims, dt_audio, esrgan, migrate, video
 from .dt_client import DrawThingsClient, DrawThingsStalled
 from . import vocab
 from .llm import META_TAGS, LlmError, OllamaClient, image_for_vision
+from .private_models import version_from_ref
 from .registry import load_registry
 from .schemas import (
     AnimateRequest,
@@ -58,6 +60,7 @@ from .schemas import (
     PublishRequest,
     RefineRequest,
     HideUninstalledRequest,
+    CivitaiRefRequest,
     LoraChoiceRequest,
     LoraSpec,
     ModelEnabledRequest,
@@ -82,20 +85,39 @@ VISION_REQUIRED = (
 # a model an earlier release shipped and this one dropped comes back under its
 # old key before anything reads the config (app/migrate.py); never fatal
 migrate.run_on_startup()
-registry = load_registry()
-registry.resolve_installed()
 store = Store()
 settings_store = SettingsStore()
-# whatever this install has changed the shipped step counts to, laid over the
-# registry before anything can render with the defaults
-registry.apply_lora_choices(settings_store.lora_choices())
-registry.apply_step_overrides(settings_store.steps())
-# ...and which models this install has hidden from the chips and pickers. Only
-# the UI honours it: every endpoint still renders a hidden model asked for by
-# key, so a card made before the model was hidden keeps all of its buttons.
-registry.apply_model_visibility(
-    settings_store.disabled_models(), settings_store.hide_uninstalled()
-)
+
+
+def _build_registry():
+    """The config as this install has it: models found under any name, then
+    the install's own choices laid over what ships."""
+    reg = load_registry()
+    reg.file_aliases = migrate.file_aliases()
+    reg.resolve_installed()
+    # whatever this install has changed the shipped step counts to, laid over
+    # the registry before anything can render with the defaults
+    reg.apply_lora_choices(settings_store.lora_choices())
+    reg.apply_step_overrides(settings_store.steps())
+    # ...and which models this install has hidden from the chips and pickers.
+    # Only the UI honours it: every endpoint still renders a hidden model asked
+    # for by key, so a card made before the model was hidden keeps all of its
+    # buttons.
+    reg.apply_model_visibility(settings_store.disabled_models(), settings_store.hide_uninstalled())
+    return reg
+
+
+registry = _build_registry()
+
+
+def _reload_registry() -> None:
+    """Swap in the config after models.private.yaml changed under the server.
+
+    Everything reads `registry` at call time, so the next request sees the new
+    one; a render already running keeps the spec it was handed.
+    """
+    global registry
+    registry = _build_registry()
 dt = DrawThingsClient(registry.draw_things.host, registry.draw_things.request_timeout)
 llm = OllamaClient(
     registry.llm.host, registry.llm.model, registry.llm.temperature,
@@ -1152,7 +1174,14 @@ async def aspects() -> list[dict]:
 @app.get("/api/models")
 async def models() -> list[dict]:
     # re-scan the model folders so a model imported into Draw Things after
-    # startup appears on the next page refresh, without a server restart
+    # startup appears on the next page refresh, without a server restart --
+    # set up the way startup would have (app/migrate.py), when it is new
+    if not os.environ.get("DRAFTPOOL_NO_MIGRATE") and migrate.has_new_imports(registry):
+        try:
+            await asyncio.to_thread(migrate.wire_installed_models)
+            _reload_registry()
+        except Exception:  # noqa: BLE001 - the list must still come back
+            log.exception("setting up a new import failed; config left as it was")
     registry.resolve_installed()
     return [
         {
@@ -1207,6 +1236,10 @@ async def models() -> list[dict]:
             "allow_full_edit": not m.edit_only,
             "upscale": m.upscale.model_dump(),
             "upscale_seconds": m.upscale_seconds,
+            # the Civitai version that credits it when published; a model the
+            # user added without one can be given it in the settings dialog
+            "civitai_version_id": m.civitai_version_id,
+            "can_identify": m.key in registry.private_keys and not m.civitai_version_id,
             # the reason travels with the flag: the UI shows a disabled button
             # explaining which model is missing, rather than hiding the action
             "can_upscale": registry.upscale_block(m.key) is None,
@@ -1310,6 +1343,28 @@ async def set_lora_choice(model_key: str, option_key: str, req: LoraChoiceReques
         "final_stage": spec.final.model_dump(),
         "lora_options": [_lora_option_reply(o) for o in spec.lora_options],
     }
+
+
+@app.put("/api/models/{model_key}/civitai")
+async def set_civitai_version(model_key: str, req: CivitaiRefRequest) -> dict:
+    """Say which Civitai version one of the user's models is.
+
+    The id, the AIR, the page's address or the SHA256 of the download -- what
+    the model's page shows. It credits the checkpoint when publishing, and can
+    change its settings: a version measured here brings those, and a model
+    set up from the wrong class (named nothing that said Illustrious) moves to
+    the right one (migrate.identify_model). The reply says which happened.
+    """
+    if model_key not in registry.models:
+        raise HTTPException(404, f"unknown model key: {model_key}")
+    try:
+        version_id = await asyncio.to_thread(version_from_ref, req.ref)
+        message = await asyncio.to_thread(migrate.identify_model, model_key, version_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    _reload_registry()
+    log.info("model %s is Civitai version %s: %s", model_key, version_id, message)
+    return {"message": message, "civitai_version_id": version_id}
 
 
 @app.delete("/api/settings/steps")

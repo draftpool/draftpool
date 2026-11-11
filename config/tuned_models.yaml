@@ -1,19 +1,33 @@
 # Settings measured on specific checkpoints, by Civitai version id.
 #
-# scripts/add_civitai_model.py uses an entry here instead of the base model's
-# profile (config/base_models.yaml) when the checkpoint you add is one of
-# these versions: the sampler, steps, sizes and the rest were rendered and
-# judged on that exact file. Generated from the measured entries; not edited
-# by hand.
+# The app recognises an import of one of these versions on the start after it
+# is imported (app/migrate.py) and sets it up with these settings instead of
+# its class's profile (config/base_models.yaml); scripts/add_civitai_model.py
+# does the same when asked. The sampler, steps, sizes and the rest were
+# rendered and judged on that exact file. Generated from the measured
+# entries; not edited by hand.
 #
+#   key, label           the app's key and name for it; only on a model that is
+#                        not adult-flagged on Civitai, the rest are not named
 #   draw_things_version  the architecture Draw Things records for the import;
 #                        a mismatch is refused
+#   fingerprints         its weights in Draw Things' converted file, so the app
+#                        recognises the import whatever it is called
+#   files                hashes of the file names it is downloaded under, for
+#                        an import the fingerprint misses (a quantised one)
 #   settings             a `models:` entry minus label, dt_filename and
 #                        civitai_version_id
 
 tuned:
   2786084:
+    key: janku
+    label: JANKU Illustrious v7.77
     draw_things_version: sdxl_base_v0.9
+    fingerprints:
+    - e0f00f1e4aab4fc91fac0e462fdc7d550639332723cb537a014dba57aba68bac
+    files:
+    - 0d452975a9d7a87ffc2efac08db537fb4b0a34794ab604c1654a0724b06ff07b
+    - 1dcddf10adc5d37e88ed7a553c26ffbbc10f575c73666b7670a74d37414b12ea
     settings:
       sampler: Euler a
       cfg: 5.0
@@ -47,6 +61,11 @@ tuned:
         strength: 0.3
   2883731:
     draw_things_version: sdxl_base_v0.9
+    fingerprints:
+    - 530147451d7db6b55b98f5847a7b5d1200f82a79c82e7e3ce948f2cc2e7b9f0a
+    files:
+    - 362848b34527b801edbbbf1f19751db144207ddcfaf3f7c6b6ea072e6c3eaf70
+    - e0a6a8332d7c422eb198f0df8dd1b9492c0b305bd459fd4725ca3401a339e88c
     settings:
       sampler: DPM++ 2M Karras
       cfg: 6.0
@@ -79,7 +98,14 @@ tuned:
         steps: 20
         strength: 0.3
   2886849:
+    key: cyberrealistic-illustrious
+    label: CyberRealistic Illustrious Anime v5.0
     draw_things_version: sdxl_base_v0.9
+    fingerprints:
+    - fde953d98db6c648982865f23142ab5fef18a9f8e2051e814a90ef05eb55f859
+    files:
+    - 72588073a26ed9e3f80fd57301aff06b87454e9f6b94153dba38304670648ffd
+    - bb3df4c5a5052d1f534e09c6ff494baceabfc112ce4b76a4645370f6399621ea
     settings:
       sampler: DPM++ 2M Karras
       cfg: 4.0
@@ -112,7 +138,14 @@ tuned:
         steps: 20
         strength: 0.3
   2925672:
+    key: perfectdeliberate
+    label: PerfectDeliberate v5.0a (artistic)
     draw_things_version: sdxl_base_v0.9
+    fingerprints:
+    - ea91e5c8f2780ceff9df3092c0f66e34713b4a72611740a6bdb801a2ea2196f9
+    files:
+    - 54a1e454293f3e222b083e2327f3aeea96ed1ae0f4165a38db3aac3953c590d7
+    - 58a61d86a56adfe9b3be44d44280a4e9ec280eca2109c8ab22fb107c0ccde2dc
     settings:
       aspect_size: 1024
       sampler: DPM++ 2M Karras
@@ -142,6 +175,11 @@ tuned:
         strength: 0.3
   3218603:
     draw_things_version: sdxl_base_v0.9
+    fingerprints:
+    - 7568a7616808506ffce3cd58d597d636f2a272170eb4ee29b860de5d45ddd5da
+    files:
+    - 7aa733818dc550c20f75fd91a3601e59c7e43e0489a5c92b4352523fa21b24d7
+    - 9a81441fb4f616d39a399ac8f5e6cd81a3250a7d90c95210e2ec8d3ff2cab132
     settings:
       aspect_size: 1024
       sampler: DPM++ 2M Karras
@@ -175,6 +213,11 @@ tuned:
         strength: 0.3
   3262295:
     draw_things_version: sdxl_base_v0.9
+    fingerprints:
+    - b5e305b975cf437eb0b786d6dc55fa2ec4d641061b310e567164b4a3d8146cf9
+    files:
+    - 535eaeb9609c209320ad3c57035fbcceae9e2e7373babed213eb708cf2b25439
+    - fdd1c3baa9b48046c81a1fa7374f78965359635b0a03d9d66200a1620f0b1cec
     settings:
       sampler: Euler a
       cfg: 5.0
@@ -212,7 +255,14 @@ tuned:
         steps: 20
         strength: 0.3
   3334245:
+    key: unholy-desire-anima
+    label: Unholy Desire Anima
     draw_things_version: cosmos2.5_2b
+    fingerprints:
+    - ca4db6674cdaba039d759d263da4e89690d953b382e41b175cef824845c96488
+    files:
+    - 6061c27b15162dda2b83eb9942038beee49f26608e03fbdccb5119e303948959
+    - f0f81c6d2081fa9d070d4500179bd807bcbce46421b2ee5087c61c594700b978
     settings:
       aspect_size: 1472
       quality_prefix: masterpiece, best quality, score_9, score_8, score_7

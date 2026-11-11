@@ -64,11 +64,13 @@ own catalogue and needs no Civitai account.
 
 ## Adding any other model
 
-Any Illustrious, Anima or SDXL checkpoint from Civitai can be plugged in with
-`scripts/add_civitai_model.py`, which sets it up from its base model in a
-minute; the steps are in
-[Adding a model](ADDING-A-MODEL.md#plugging-in-a-model-from-civitai). Your
-models live in `config/models.private.yaml`, which updates never touch.
+Import any Illustrious, Anima or SDXL checkpoint into Draw Things and restart
+the server: it appears in the composer, set up for its kind of model. When it
+is a version whose settings were measured exactly, it gets those instead and
+is credited by its Civitai version when you publish; the app recognises the
+weights, whatever the file is called. Details and the options are in
+[Adding a model](ADDING-A-MODEL.md#plugging-in-a-model-from-civitai).
+Your models live in `config/models.private.yaml`, which updates never touch.
 
 ## The video models
 

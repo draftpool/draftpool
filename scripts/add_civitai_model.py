@@ -8,8 +8,18 @@
         version id (the number after modelVersionId= on its page) names the
         base model and credits the checkpoint when you publish
 
+    uv run python scripts/add_civitai_model.py NAME --air urn:air:sdxl:checkpoint:civitai:MODEL@VERSION
+    uv run python scripts/add_civitai_model.py NAME --hash SHA256
+        the same, naming the version by the AIR or the SHA256 its Civitai page
+        shows (the hash of the file you downloaded; Draw Things' converted copy
+        hashes differently)
+
     uv run python scripts/add_civitai_model.py NAME --base illustrious
         the same without Civitai, naming the base model yourself
+
+The server sets up most imports by itself on the start after them; this is
+for one it guessed wrong, or one you want credited when you publish. Delete
+the entry the server added first.
 
 Options: --key, --label to choose the app's names for it; --dry-run to print the
 entry without writing it.
@@ -29,26 +39,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
-import urllib.request
 from datetime import date
 from pathlib import Path
-
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.private_models import TUNED_PATH, append_entry as _append_entry, dump_entry, load_tuned  # noqa: E402,F401
+from app.private_models import (  # noqa: E402,F401
+    PROFILES_PATH, TUNED_PATH, append_entry as _append_entry, civitai_version,
+    civitai_version_by_hash, dump_entry, imported_models, load_profiles, load_tuned, slug,
+    version_from_air,
+)
 from app.registry import CONFIG_PATH, load_registry, match_filename, private_path  # noqa: E402
 
-PROFILES_PATH = CONFIG_PATH.parent / "base_models.yaml"
 # the profile name an entry gets when its version was measured here
 MEASURED = "measured"
-
-def load_profiles(path: Path = PROFILES_PATH) -> dict:
-    return yaml.safe_load(path.read_text())["profiles"]
 
 
 def resolve(profiles: dict, tuned: dict[int, dict], imported: dict, base: str | None,
@@ -68,15 +74,6 @@ def resolve(profiles: dict, tuned: dict[int, dict], imported: dict, base: str | 
     return choose_profile(profiles, imported, base, civitai), profiles
 
 
-def imported_models(models_dirs: list[str]) -> list[dict]:
-    """What Draw Things' own list of imported models says, from the first dir that has one."""
-    for d in models_dirs:
-        f = Path(d).expanduser() / "custom.json"
-        if f.is_file():
-            return [e for e in json.loads(f.read_text()) if isinstance(e, dict) and e.get("file")]
-    return []
-
-
 def unused(imported: list[dict], known_files: list[str]) -> list[dict]:
     """Imported models no config entry already points at."""
     return [e for e in imported if not any(match_filename(k, {e["file"]}) for k in known_files)]
@@ -94,24 +91,6 @@ def pick(imported: list[dict], name: str) -> dict:
     if not part:
         raise SystemExit(f"no imported model matches {name!r}; run with no arguments to list them")
     raise SystemExit(f"{name!r} matches several: " + ", ".join(e["file"] for e in part))
-
-
-def civitai_version(version_id: int) -> dict:
-    """The version's base model, names and creator, from Civitai's public API."""
-    def get(url: str) -> dict:
-        req = urllib.request.Request(url, headers={"User-Agent": "draftpool-add-model"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-
-    v = get(f"https://civitai.com/api/v1/model-versions/{version_id}")
-    creator = None
-    try:
-        creator = get(f"https://civitai.com/api/v1/models/{v['modelId']}")["creator"]["username"]
-    except Exception:  # noqa: BLE001 - the credit line is a nicety
-        pass
-    return {"id": version_id, "base_model": v.get("baseModel"),
-            "model": v.get("model", {}).get("name"), "version": v.get("name"),
-            "creator": creator}
 
 
 def choose_profile(profiles: dict, imported: dict, base: str | None, civitai: dict | None) -> str:
@@ -143,10 +122,6 @@ def choose_profile(profiles: dict, imported: dict, base: str | None, civitai: di
             f"the {key} profile is for Draw Things architecture {want!r}, and this import is "
             f"{imported.get('version')!r}: the settings would not fit it")
     return key
-
-
-def slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "model"
 
 
 def build_entry(imported: dict, profile_key: str, profiles: dict,
@@ -191,11 +166,25 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("name", nargs="?", help="the imported model's file or name")
     ap.add_argument("--civitai", type=int, help="its Civitai version id")
+    ap.add_argument("--air", help="its Civitai AIR, instead of the version id")
+    ap.add_argument("--hash", help="the SHA256 of the downloaded file, instead of the version id")
     ap.add_argument("--base", help="the profile to use, instead of asking Civitai")
     ap.add_argument("--key", help="the app's key for it (default: from the file name)")
     ap.add_argument("--label", help="the name the app shows (default: from Civitai or Draw Things)")
     ap.add_argument("--dry-run", action="store_true", help="print the entry, write nothing")
     args = ap.parse_args(argv)
+    if sum(x is not None for x in (args.civitai, args.air, args.hash)) > 1:
+        raise SystemExit("name the version one way: --civitai, --air or --hash")
+    if args.air:
+        try:
+            args.civitai = version_from_air(args.air)
+        except ValueError as exc:
+            raise SystemExit(str(exc))
+    elif args.hash:
+        try:
+            args.civitai = civitai_version_by_hash(args.hash)
+        except Exception as exc:  # noqa: BLE001
+            raise SystemExit(f"Civitai knows no version with SHA256 {args.hash}: {exc}")
 
     registry = load_registry(CONFIG_PATH)
     profiles = load_profiles()
@@ -232,6 +221,10 @@ def main(argv: list[str] | None = None) -> int:
             # measured here: the settings need no lookup, only the label does
             civitai = {"id": args.civitai}
     profile_key, profiles = resolve(profiles, tuned, chosen, args.base, args.civitai, civitai)
+    if profile_key == MEASURED:
+        # a row that may name its model says what the app calls it
+        args.key = args.key or tuned[args.civitai].get("key")
+        args.label = args.label or tuned[args.civitai].get("label")
     key, entry = build_entry(chosen, profile_key, profiles, civitai, args.key, args.label)
     if key in registry.models or key in registry.video_models:
         raise SystemExit(f"the app already has a model {key!r}; choose another with --key")

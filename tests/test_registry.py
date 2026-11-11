@@ -565,7 +565,17 @@ def test_every_model_credits_a_checkpoint_when_published():
     with one.
     """
     reg = load_registry(CONFIG_PATH)
-    assert [k for k, m in reg.models.items() if not m.civitai_version_id] == []
+    assert [k for k, m in reg.models.items()
+            if not m.civitai_version_id and k not in _written_for_the_user()] == []
+
+
+def _written_for_the_user() -> set[str]:
+    """This machine's entries startup or a script set up from a profile: not
+    measured and not shipped, so the rules for measured entries pass them by."""
+    from app.private_models import added_keys
+    from app.registry import private_path
+
+    return added_keys(private_path(CONFIG_PATH))
 
 
 def test_no_two_models_claim_the_same_civitai_version():
@@ -620,7 +630,7 @@ def test_the_widest_shape_renders_at_a_size_that_has_been_probed():
     reg = load_registry(CONFIG_PATH)
     unprobed: dict[str, str] = {}
     for key, m in reg.models.items():
-        if m.edit_only or m.aspect_size is None:
+        if m.edit_only or m.aspect_size is None or key in _written_for_the_user():
             continue
         if key == "flux1-schnell":
             # not renderable on the measuring install: Draw Things answers

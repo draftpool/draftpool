@@ -24,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.registry import CONFIG_PATH, load_registry
 from app.sessions import Store
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,13 @@ MODEL = "bas-anima"
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "store", Store(tmp_path))
+    # every model installed, whatever this machine's Draw Things has: these
+    # tests are about the API, and resolve_installed() would rescan the real folder
+    reg = load_registry(CONFIG_PATH)
+    for spec in reg.models.values():
+        spec.installed = True
+    monkeypatch.setattr(main, "registry", reg)
+    monkeypatch.setattr(type(reg), "resolve_installed", lambda self: None)
     with TestClient(main.app) as c:
         yield c
 
