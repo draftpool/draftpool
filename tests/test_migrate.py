@@ -152,23 +152,29 @@ def test_no_tags_no_folder_no_git_means_nothing_happens(install, tmp_path):
 
 
 def test_startup_survives_a_failing_migration(monkeypatch, caplog):
-    """Either step failing is logged, and the other still runs.
+    """Any step failing is logged, and the others still run.
 
-    Both are stubbed: run_on_startup acts on the real config otherwise.
+    All four are stubbed: run_on_startup acts on the real config otherwise.
     """
     def boom(**_):
         raise RuntimeError("disk on fire")
 
     ran = []
     monkeypatch.delenv("DRAFTPOOL_NO_MIGRATE", raising=False)
+    monkeypatch.setattr(migrate, "refresh_measured_models", lambda **_: [])
     monkeypatch.setattr(migrate, "migrate_dropped_models", boom)
+    monkeypatch.setattr(migrate, "reclass_guessed_models", lambda **_: ran.append(0) or [])
     monkeypatch.setattr(migrate, "wire_installed_models", lambda **_: ran.append(1) or [])
     migrate.run_on_startup()
-    assert "migration of dropped models failed" in caplog.text and ran == [1]
+    assert "migration of dropped models failed" in caplog.text and ran == [0, 1]
     monkeypatch.setattr(migrate, "migrate_dropped_models", lambda **_: ran.append(2) or [])
+    monkeypatch.setattr(migrate, "reclass_guessed_models", boom)
+    migrate.run_on_startup()
+    assert "moving guessed models to their class failed" in caplog.text and ran == [0, 1, 2, 1]
+    monkeypatch.setattr(migrate, "reclass_guessed_models", lambda **_: ran.append(0) or [])
     monkeypatch.setattr(migrate, "wire_installed_models", boom)
     migrate.run_on_startup()
-    assert "wiring installed models failed" in caplog.text and ran == [1, 2]
+    assert "wiring installed models failed" in caplog.text and ran == [0, 1, 2, 1, 2, 0]
 
 
 def test_release_check_refuses_a_drop_it_cannot_migrate(install):
@@ -183,7 +189,7 @@ def test_release_check_refuses_a_drop_it_cannot_migrate(install):
 
 # -- wiring what Draw Things has: recognised, or by class --------------------------
 
-from app.private_models import class_of, file_digest, load_profiles  # noqa: E402
+from app.private_models import class_of, entry_block, file_digest, load_profiles  # noqa: E402
 
 PROFILES = {"profiles": {
     "illustrious": {"draw_things_version": "sdxl_base_v0.9", "name_hints": ["illustrious", "noob"],
@@ -199,6 +205,12 @@ PROFILES = {"profiles": {
              "settings": {"prompt_style": "prose", "draft": {"size": 1024, "steps": 14},
                           "final": {"size": 1280, "steps": 30},
                           "upscale": {"size": 2048, "steps": 20, "strength": 0.3}}},
+    # listed after sdxl, the plain class of the same Civitai base, on purpose
+    "animagine": {"draw_things_version": "sdxl_base_v0.9", "name_hints": ["animagine"],
+                  "civitai_base_models": ["SDXL 1.0"],
+                  "settings": {"prompt_style": "tags", "draft": {"size": 768, "steps": 14},
+                               "final": {"size": 1024, "steps": 28},
+                               "upscale": {"size": 2048, "steps": 20, "strength": 0.3}}},
 }}
 
 
@@ -229,7 +241,7 @@ def machine(tmp_path: Path):
                      "final": {"size": 1536, "steps": 27},
                      "upscale": {"size": 2048, "steps": 10, "strength": 0.35}}}}}))
     profiles = conf / "base_models.yaml"
-    profiles.write_text(yaml.safe_dump(PROFILES))
+    profiles.write_text(yaml.safe_dump(PROFILES, sort_keys=False))
 
     class M:
         pass
@@ -307,6 +319,9 @@ def test_the_classes_split_sdxl_by_name_and_refuse_what_fits_none():
     profiles = load_profiles()
     assert class_of({"file": "x_noobai_f16.ckpt", "version": "sdxl_base_v0.9"}, profiles) == "illustrious"
     assert class_of({"file": "big_love_f16.ckpt", "version": "sdxl_base_v0.9"}, profiles) == "sdxl"
+    # Danbooru-trained but not Illustrious: tags, at base SDXL's own size
+    assert class_of({"file": "animagine_xl_v3.1_q6p_q8p.ckpt", "name": "Animagine XL v3.1 (8-bit)",
+                     "version": "sdxl_base_v0.9"}, profiles) == "animagine"
     assert class_of({"file": "x_f16.ckpt", "version": "cosmos2.5_2b"}, profiles) == "anima"
     assert class_of({"file": "x_f16.ckpt", "version": "flux1"}, profiles) is None
 
@@ -444,6 +459,76 @@ def test_a_guessed_class_is_corrected_by_the_version(machine):
     assert machine.private.read_text().count("  plainxl-v2:") == 1
 
 
+def _import(machine, file, name):
+    (machine.models / file).touch()
+    rows = json.loads((machine.models / "custom.json").read_text())
+    rows.append({"file": file, "name": name, "version": "sdxl_base_v0.9"})
+    (machine.models / "custom.json").write_text(json.dumps(rows))
+
+
+def test_a_base_two_classes_share_does_not_undo_the_class_the_name_gave(machine):
+    """Civitai calls Animagine "SDXL 1.0", which is the plain class's base too:
+    crediting it must not move it onto prose and lens talk."""
+    _import(machine, "animaginexl_v4_f16.ckpt", "Animagine XL 4.0")
+    machine.run()
+    assert load_registry(machine.cfg).models["animaginexl-v4"].prompt_style == "tags"
+    said = _identify(machine, "animaginexl-v4", 556, _civitai("SDXL 1.0", "Animagine XL", "4.0"))
+    spec = load_registry(machine.cfg).models["animaginexl-v4"]
+    assert (spec.prompt_style, spec.final.size, spec.civitai_version_id) == ("tags", 1024, 556)
+    assert "settings are kept" in said
+
+
+def test_the_civitai_name_can_move_a_model_to_the_class_it_names(machine):
+    machine.run()
+    said = _identify(machine, "plainxl-v2", 557, _civitai("SDXL 1.0", "Animagine XL", "3.1"))
+    assert load_registry(machine.cfg).models["plainxl-v2"].prompt_style == "tags"
+    assert "set up as animagine (it was sdxl)" in said
+    # and a photographic one stays where it is
+    machine.run()
+    said = _identify(machine, "someillustrious-v1", 558, _civitai("Illustrious"))
+    assert "settings are kept" in said
+
+
+def test_a_model_left_on_the_wrong_class_is_moved_once_on_startup(machine):
+    """A release that teaches the classes a new name moves the models a
+    previous start put on the wrong one -- only those still exactly on that
+    profile, never one credited by Civitai or edited by hand, and only once."""
+    profiles_path = machine.cfg.with_name("base_models.yaml")
+    hinted = yaml.safe_load(profiles_path.read_text())
+    unhinted = json.loads(json.dumps(hinted))
+    unhinted["profiles"]["animagine"]["name_hints"] = ["nothing-matches-this"]
+    profiles_path.write_text(yaml.safe_dump(unhinted, sort_keys=False))
+    for file, name in (("animaginexl_v4_f16.ckpt", "Animagine XL 4.0"),
+                       ("animagine_edited_f16.ckpt", "Animagine Edited"),
+                       ("animagine_credited_f16.ckpt", "Animagine Credited")):
+        _import(machine, file, name)
+    machine.run()  # the release before: all three on plain sdxl
+    text = machine.private.read_text()
+    machine.private.write_text(text.replace(
+        "  animagine-edited:\n", "  animagine-edited:\n    clip_skip: 2\n"))
+    _identify(machine, "animagine-credited", 559, _civitai("SDXL 1.0", "Something"))
+    profiles_path.write_text(yaml.safe_dump(hinted, sort_keys=False))  # the release after
+    before = machine.private.read_text()
+
+    def reclass():
+        return migrate.reclass_guessed_models(config_path=machine.cfg, data_dir=machine.data,
+                                             profiles_path=profiles_path, today="2026-11-12")
+    assert reclass() == ["animaginexl-v4"]
+    models = load_registry(machine.cfg).models
+    assert models["animaginexl-v4"].prompt_style == "tags"
+    assert models["animaginexl-v4"].label == "Animagine XL 4.0"
+    assert (models["animagine-edited"].prompt_style, models["animagine-edited"].clip_skip) == ("prose", 2)
+    assert models["animagine-credited"].prompt_style == "prose"
+    assert "Moved 2026-11-12 on startup from the sdxl profile" in machine.private.read_text()
+    # still written for the user, not measured: the rules for measured entries pass it by
+    from app.private_models import added_keys
+    assert "animaginexl-v4" in added_keys(machine.private)
+    # put back by hand: left there
+    machine.private.write_text(before)
+    assert reclass() == []
+    assert load_registry(machine.cfg).models["animaginexl-v4"].prompt_style == "prose"
+
+
 def test_a_measured_version_brings_its_settings(machine):
     machine.run()
     said = _identify(machine, "plainxl-v2", 333, _civitai("Illustrious"))
@@ -496,3 +581,61 @@ def test_every_form_the_civitai_page_shows_names_the_version():
     for bad in ("", "unholy desire", "civitai:1307857", "ab" * 31):
         with pytest.raises(ValueError):
             version_from_ref(bad, by_hash=lambda h: 7)
+
+
+# -- a measured version whose measurement changed ------------------------------
+
+
+def test_a_model_set_up_from_a_measurement_follows_it_when_it_changes(tmp_path):
+    """Two measured Illustrious versions moved from Euler a to DPM++ after a control with
+    their real prompt. Whoever imported one already has the old numbers in
+    their own private file, which tuned_models.yaml no longer reaches -- so a
+    start moves an entry still exactly on an earlier release's row to the
+    current one. Never one edited (or tuned) since, never this checkout's own
+    measured source, and once per change."""
+    root, data = tmp_path / "clone", tmp_path / "data"
+    (root / "config").mkdir(parents=True)
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+    old = {"sampler": "Euler a", "cfg": 5.0, "prompt_style": "tags",
+           "draft": {"size": 768, "steps": 14}, "final": {"size": 1024, "steps": 20},
+           "upscale": {"size": 2048, "steps": 10, "strength": 0.3}}
+    new = {**old, "sampler": "DPM++ 2M Karras"}
+    row = {"draw_things_version": "sdxl_base_v0.9"}
+    tuned_file = root / "config" / "tuned_models.yaml"
+    git("init", "-q"); git("config", "user.email", "t@example.invalid"); git("config", "user.name", "t")
+    tuned_file.write_text(yaml.safe_dump({"tuned": {111: {**row, "settings": old}}}))
+    git("add", "."); git("commit", "-qm", "1.0.0"); git("tag", "v1.0.0")
+    tuned_file.write_text(yaml.safe_dump({"tuned": {111: {**row, "settings": new}}}))
+
+    cfg = root / "config" / "models.yaml"
+    cfg.write_text(_config(tmp_path / "Models", KEPT))
+    added = ["Added 2026-11-11 on startup: installed in Draw Things, with the settings measured",
+             "on this exact version (config/tuned_models.yaml)."]
+    blocks = [
+        entry_block("mine", {"label": "Mine", "dt_filename": "mine_f16.ckpt",
+                             "civitai_version_id": 111, **old, "fingerprints": ["ab"]}, added),
+        entry_block("edited", {"label": "Edited", "dt_filename": "ed_f16.ckpt",
+                               "civitai_version_id": 111, **{**old, "cfg": 4.0}}, added),
+        # this checkout's own measured source: written by hand, no added mark
+        entry_block("source", {"label": "Source", "dt_filename": "src_f16.ckpt",
+                               "civitai_version_id": 111, **old}, ["MEASURED by hand."]),
+    ]
+    private = cfg.with_name("models.private.yaml")
+    private.write_text("models:\n" + "\n".join(blocks))
+
+    def run():
+        return migrate.refresh_measured_models(root=root, config_path=cfg, data_dir=data,
+                                               tuned_path=tuned_file, today="2026-11-12")
+    assert run() == ["mine"]
+    models = load_registry(cfg).models
+    assert models["mine"].sampler == "DPM++ 2M Karras" and models["mine"].fingerprints == ["ab"]
+    assert (models["edited"].sampler, models["source"].sampler) == ("Euler a", "Euler a")
+    from app.private_models import added_keys
+    assert "mine" in added_keys(private)
+    assert "Updated 2026-11-12 on startup from the measured settings" in private.read_text()
+    # put back by hand: left there
+    private.write_text(private.read_text().replace("sampler: DPM++ 2M Karras", "sampler: Euler a", 1))
+    assert run() == []

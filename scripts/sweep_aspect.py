@@ -58,7 +58,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app import ROOT
 from app.dims import ASPECTS, ratio, stage_dims
 from app.dt_client import DrawThingsClient, DrawThingsError, DrawThingsStalled
-from app.registry import load_registry, lora_tag
+from app.registry import load_for_measuring, lora_tag
 from research_frames import archive, archived, keep, start_run
 from sweep_final_steps import analyse, sheet
 
@@ -95,7 +95,7 @@ async def run(keys: list[str], seeds: list[int], shapes: list[str],
     # the models as they ship, unless a tick is what is being measured -- in
     # which case its recipe (a bigger final, fewer steps) is what renders,
     # and the frames carry the tick's key so they sit beside the plain ones
-    reg = load_registry(lora_options=lora_options)
+    reg = load_for_measuring(lora_options=lora_options)
     dt = DrawThingsClient("http://127.0.0.1:7860")
     if not await dt.is_up():
         raise SystemExit("Draw Things is not answering on 127.0.0.1:7860")
@@ -226,7 +226,7 @@ def main() -> None:
     ap.add_argument("--note", help="what this run is for; given, the run is archived "
                                    "into research/ when it completes")
     args = ap.parse_args()
-    reg = load_registry(lora_options=False)
+    reg = load_for_measuring(lora_options=False)
     keys = ([k for k, m in reg.models.items() if m.aspect_size]
             if args.models == "all" else args.models.split(","))
     run_dir = asyncio.run(run(keys, [int(s) for s in args.seeds.split(",")],

@@ -232,6 +232,49 @@ def catalogue(dt_filename: str) -> dict:
     return out
 
 
+def prompt_kit(*, tags: bool, opener: str | None, negative: str | None,
+               spec=None) -> tuple[str, str]:
+    """The opener and negative every measured cell is sent with.
+
+    What the app sends the model (main.prompt_for, main.negative_for), because
+    a cell measures the model as it will be used. Until 12 November 2026 every
+    cell here went out as bare prose with an empty negative, and on Animagine
+    -- which leans on its quality tags harder than any model here -- that made
+    a whole confirm run soft and nearly misread the sampler
+    (MODEL-MEASUREMENTS.md, "animagine"). In order: the card's own, given on
+    the command line; the model's entry, when it is configured as a tag model;
+    the tag default for --tags; else nothing, which is right for prose.
+    """
+    from app.schemas import DEFAULT_TAG_NEGATIVE, DEFAULT_TAG_PREFIX
+
+    if opener is not None or negative is not None:
+        return opener or "", negative or ""
+    if spec is not None and spec.prompt_style == "tags":
+        return spec.quality_opener, spec.default_negative if spec.uses_negative_prompt else ""
+    if tags:
+        return DEFAULT_TAG_PREFIX, DEFAULT_TAG_NEGATIVE
+    return "", ""
+
+
+# fastest first (scripts/probe.py's QUICK_MODELS): a control is 256px at 4 steps,
+# and most of its cost is Draw Things switching checkpoints
+CONTROL_MODELS = ("z-image-turbo", "flux2-klein", "flux3-klein")
+
+
+def control_model(models: dict, key: str):
+    """The model a control render uses: a fast installed one, never `key`.
+
+    It used to be the first model drafting at 512 or less; once every draft
+    was 768 there was none, and batches ran with no controls at all.
+    """
+    usable = {k: m for k, m in models.items()
+              if k != key and m.installed is not False and not m.edit_only}
+    for k in (*CONTROL_MODELS, *usable):
+        if k in usable:
+            return usable[k]
+    return None
+
+
 class Renderer:
     """Sequential, resumable, and suspicious of every response.
 
@@ -241,8 +284,17 @@ class Renderer:
     than being scored as data.
     """
 
-    def __init__(self, out: Path, control_model: str | None):
+    def __init__(self, out: Path, control_model: str | None, *, opener: str = "",
+                 negative: str = "", control_sampler: str | None = None):
         self.out = out
+        # sent with every control: without one Draw Things renders with what
+        # its UI is left on, and Z-Image Turbo answered every control of a
+        # batch with an empty image that way -- a healthy session reported
+        # as stalled
+        self.control_sampler = control_sampler
+        # what the app sends this model with every prompt (prompt_kit); the
+        # control render is another model and goes out bare
+        self.opener, self.negative = opener, negative
         self.out.mkdir(parents=True, exist_ok=True)
         self.path = out / "results.json"
         self.results: dict[str, dict] = {}
@@ -255,12 +307,19 @@ class Renderer:
         self.path.write_text(json.dumps(list(self.results.values()), indent=1))
 
     def render(self, name: str, **job) -> dict:
+        measured = job["model"] != self.control_model
+        opener, negative = (self.opener, self.negative) if measured else ("", "")
         done = self.results.get(name)
-        if done and done.get("ok"):
+        # a cell rendered with another opener or negative is another
+        # measurement, not this one finished: every add_model.py cell went out
+        # bare until 12 November 2026, and those must not be resumed as these
+        if (done and done.get("ok") and done.get("opener", "") == opener
+                and done.get("negative", "") == negative):
             return done
+        prompt = job.get("prompt", "")
         payload = {
-            "prompt": job.get("prompt", ""),
-            "negative_prompt": "",
+            "prompt": f"{opener}, {prompt}" if opener and prompt else (opener or prompt),
+            "negative_prompt": negative,
             "model": job["model"],
             "width": job["width"],
             "height": job["height"],
@@ -306,7 +365,7 @@ class Renderer:
             return rec
         rec = {"name": name, "seconds": round(time.time() - t0, 1),
                "w": job["width"], "h": job["height"], "steps": job["steps"],
-               "seed": job.get("seed", 4242)}
+               "seed": job.get("seed", 4242), "opener": opener, "negative": negative}
         images = resp.json().get("images") or [] if resp.status_code == 200 else []
         if not images:
             # Empty is not one diagnosis. It could be a dead session, a render
@@ -322,7 +381,10 @@ class Renderer:
             img = Image.open(io.BytesIO(data)).convert("RGB")
             st = ImageStat.Stat(img)
             mean = sum(st.mean) / 3
-            flat = max(st.stddev) < 3.0
+            # not for a control: it asks for "a red square", and a model that
+            # draws exactly that -- Z-Image Turbo, a solid red frame -- has
+            # proved the session renders, which is all a control is for
+            flat = max(st.stddev) < 3.0 and measured
             # a safety-filter refusal is a valid grey PNG with a caption set in
             # it; it is not a picture and must never be scored as one
             blocked = (max(st.stddev) < 20 and 100 < mean < 160
@@ -346,7 +408,7 @@ class Renderer:
         self.controls += 1
         rec = self.render(f"_control{self.controls}", model=self.control_model,
                           prompt="a red square", width=256, height=256, steps=4,
-                          cfg=1.0, seed=7, timeout=600)
+                          cfg=1.0, seed=7, timeout=600, sampler=self.control_sampler)
         if not rec["ok"]:
             print("\n  !! control render failed: the Draw Things session is not "
                   "healthy. Restart it and re-run; finished cells are kept.")
@@ -693,6 +755,11 @@ def main() -> int:
                                            "(a Civitai import is not in the catalogue)")
     ap.add_argument("--card-cfg", type=float, help="cfg the model card names")
     ap.add_argument("--card-steps", type=int, help="steps the model card names")
+    ap.add_argument("--opener", help="the quality tags the card puts in front of every "
+                                     "prompt (default: the model's entry, or the tag "
+                                     "default with --tags)")
+    ap.add_argument("--negative", help="the negative prompt the card gives (default: as "
+                                       "for --opener)")
     args = ap.parse_args()
 
     out = (RESEARCH if args.level == "confirm" else RUNS) / args.key
@@ -750,10 +817,19 @@ def main() -> int:
               "model card for sampler/steps/cfg before trusting this entry.")
 
     # a cheap, known-good model to bracket expensive cells with
-    control = next((m.dt_filename for k, m in registry.models.items()
-                    if k != args.key and m.installed is not False
-                    and m.draft.size <= 512 and not m.edit_only), None)
-    r = Renderer(out, control)
+    ctl = control_model(registry.models, args.key)
+    control, control_sampler = (ctl.dt_filename, ctl.sampler) if ctl else (None, None)
+    if control is None:
+        print("   no other model installed to bracket cells with: running WITHOUT "
+              "control renders (docs/decisions/FALSE-SUCCESS.md says why that matters)")
+    opener, negative = prompt_kit(tags=args.tags, opener=args.opener, negative=args.negative,
+                                  spec=registry.models.get(args.key))
+    if opener or negative:
+        print(f"   every cell opens with {opener!r}" + (f", negative {negative!r}" if negative else ""))
+    else:
+        print("   every cell is bare prose with no negative: right for a prose model, "
+              "and a starved one for a Danbooru model -- pass --tags (or --opener/--negative)")
+    r = Renderer(out, control, opener=opener, negative=negative, control_sampler=control_sampler)
 
     if args.level == "confirm":
         if not args.like:

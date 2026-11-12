@@ -48,7 +48,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.private_models import (  # noqa: E402,F401
     PROFILES_PATH, TUNED_PATH, append_entry as _append_entry, civitai_version,
-    civitai_version_by_hash, dump_entry, imported_models, load_profiles, load_tuned, slug,
+    civitai_version_by_hash, class_for_base, dump_entry, imported_models, load_profiles, load_tuned, slug,
     version_from_air,
 )
 from app.registry import CONFIG_PATH, load_registry, match_filename, private_path  # noqa: E402
@@ -107,7 +107,12 @@ def choose_profile(profiles: dict, imported: dict, base: str | None, civitai: di
                 f"for that base ({', '.join(profiles)}). Pony, NoobAI and the rest are left out "
                 "on purpose: no model of those bases was measured here. --base forces one if "
                 "you know better.")
-        key = hits[0]
+        name = f"{imported.get('file', '')} {imported.get('name', '')} {civitai.get('model') or ''}"
+        key = class_for_base(civitai["base_model"], name, profiles)
+        if key is None:
+            raise SystemExit(
+                f"{civitai['base_model']} is served by {', '.join(hits)}, and the name does not "
+                "say which. Say which with --base.")
     else:
         hits = [k for k, p in profiles.items() if p["draw_things_version"] == imported.get("version")]
         if len(hits) != 1:

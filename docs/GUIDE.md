@@ -151,6 +151,33 @@ made from it follows suit, so changing the switch only affects new drafts.
 A LoRA you haven't installed shows greyed out and the model runs without it.
 Where to get each one is in [Setup](SETUP.md#loras).
 
+## Tuning a model you imported
+
+A checkpoint you import yourself is set up with the settings of its kind
+(Illustrious, Animagine, Anima or plain SDXL). These are a sound start, but
+the sampler and cfg that suit one finetune can leave speckle or waxy faces on
+another. In the **⚙** dialog, such a model has a **Tune…** button. It renders
+the alternatives and asks you to pick between them, in short rounds:
+
+- **Kind of model** (SDXL models only): the same scene prompted as an anime
+  model and as a general one. Draw Things can't tell these apart, and a model
+  prompted as the wrong kind comes out soft. Pick the one that looks right.
+- **Sampler and cfg:** four versions of one picture, shuffled, at full
+  resolution. Pick the cleanest.
+- **Final size:** count the people. A model asked for more pixels than it can
+  compose often draws the figure twice.
+- **Final steps:** the same picture at two step counts. If you can't tell them
+  apart, the faster one is kept. You can skip this round.
+
+It takes about 20–30 renders, so around 15–25 minutes on an SDXL model. The
+dialog shows the wait. The renders run one at a time beside your own, and you
+can close the dialog and come back. Nothing changes until you save at the end.
+A change needs the same pick on both seeds; anything less keeps what the model
+has.
+
+What you save is your choice, not a measurement. Models measured here
+individually don't offer Tune.
+
 ## Shape
 
 The **shape** row under the model chips offers square, 4:3, 3:4, 3:2, 2:3, 16:9
@@ -346,6 +373,7 @@ background details take over.
 |---|---|---|
 | Juggernaut XL Ragnarok | 600 | 900 |
 | FLUX.2 klein 9B | 450 | 900 |
+| FLUX.3 klein 5.6B | 400 | 800 |
 | Qwen Image 2512 | 400 | 800 |
 | Krea 2 Turbo | 350 | 700 |
 | Z-Image Turbo | 260 | 800 |
@@ -394,7 +422,7 @@ CFG 1 can't.
 
 These models use negative prompts: Juggernaut XL, Qwen Image, and the
 Illustrious, Anima and SDXL models, except the few measured checkpoints that
-run at CFG 1. These don't: FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo and
+run at CFG 1. These don't: FLUX.3 klein, FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo and
 Krea 2 Turbo, nor any model while its [speed LoRA](#speed-loras) is on.
 
 If you leave it empty, a sensible default is used. **Anything you type replaces

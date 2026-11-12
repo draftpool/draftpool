@@ -490,6 +490,7 @@ then hides rather than failing on.
    rough on-disk sizes (they vary with the quantisation you pick, and
    the app pulls a few GB of shared text encoders and VAEs alongside):
      ${B}Z Image Turbo${N}             ~6GB   (the fastest; a good first one)
+     ${B}FLUX.3 [klein] 5.6B${N}       ~6GB
      ${B}FLUX.2 [klein] 9B${N}         ~9GB
      ${B}FLUX.1 [schnell]${N}         ~11GB
      ${B}Krea 2 Turbo${N}             ~13GB

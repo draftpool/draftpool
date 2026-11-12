@@ -658,6 +658,38 @@
   #renameDlg h3 { font-size: 14px; margin: 0 0 8px; }
   #renameDlg input { width: 100%; box-sizing: border-box; }
   #renameDlg .row { justify-content: flex-end; margin-top: 12px; }
+  #stepsDlg .tuneBtn { font-size: 12px; padding: 3px 8px; }
+  /* The Tune wizard (app/tune.py). A crop is shown at native pixels -- object-fit:
+     none -- because what is being judged (coloured speckle on skin and hair,
+     a waxy unformed face) is the first thing scaling a frame down destroys. */
+  #tuneDlg { width: min(980px, 94vw); padding: 18px 22px; }
+  #tuneDlg h2 { font-size: 16px; margin: 0 0 4px; }
+  #tuneDlg .tuneStep { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+  #tuneDlg .tuneQ { margin: 14px 0 6px; font-size: 13px; }
+  #tuneDlg .tuneGrid { display: flex; flex-wrap: wrap; gap: 10px; }
+  #tuneDlg .tuneOpt {
+    position: relative; border: 2px solid var(--border); border-radius: 8px; overflow: hidden;
+    background: #07080a; cursor: pointer; padding: 0;
+  }
+  #tuneDlg .tuneOpt:hover { border-color: var(--muted); }
+  #tuneDlg .tuneOpt.picked { border-color: var(--accent); }
+  #tuneDlg .tuneOpt img { display: block; }
+  #tuneDlg .tuneOpt img.crop { width: 300px; height: 300px; object-fit: none; object-position: 50% 40%; }
+  #tuneDlg .tuneOpt img.whole { max-width: 440px; max-height: 360px; object-fit: contain; }
+  #tuneDlg .tuneOpt .tag {
+    position: absolute; left: 6px; top: 6px; font-size: 12px; padding: 1px 7px;
+    border-radius: 5px; background: rgba(10,11,13,.82); color: #e8e8ea;
+  }
+  #tuneDlg .tuneOpt.failed { cursor: not-allowed; width: 300px; height: 120px; color: var(--muted);
+    font-size: 12px; padding: 30px 12px 8px; text-align: left; }
+  #tuneDlg .tuneAnswers { display: flex; gap: 8px; margin-top: 8px; }
+  #tuneDlg .tuneAnswers button.picked { border-color: var(--accent); color: var(--accent); }
+  #tuneDlg .tuneNotes { font-size: 13px; line-height: 1.55; padding-left: 18px; }
+  #tuneDlg table { border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+  #tuneDlg td, #tuneDlg th { padding: 3px 14px 3px 0; text-align: left; }
+  #tuneDlg th { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
+  #tuneDlg .closeRow { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+  #tuneDlg .closeRow .left { margin-right: auto; }
   #helpDlg { max-width: 640px; padding: 20px 24px; }
   #helpDlg h2 { font-size: 16px; margin: 0 0 6px; }
   #helpDlg h3 { font-size: 13px; color: var(--accent); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
@@ -855,7 +887,8 @@
     Blank or <b>reset</b> puts a value back to what the model ships with; a changed number is shown in blue.
     A model you imported yourself is set up for its kind on the first start after; give it its <b>Civitai</b> version
     — the id, the AIR or the SHA256 from its page — to credit it when you publish, and to correct its settings
-    if it was guessed wrong.</p>
+    if it was guessed wrong. <b>Tune…</b> renders such a model's settings against the alternatives and lets you
+    pick what looks right.</p>
   <div id="stepsRows"></div>
   <div id="videoRows"></div>
   <p class="hint">A single final can be given more steps without changing anything here: type a number in the small box beside <b>Finalize</b> on the card.</p>
@@ -907,6 +940,16 @@
       <button type="submit" id="renameSave">Save</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="tuneDlg">
+  <h2 id="tuneTitle">Tune</h2>
+  <p class="tuneStep" id="tuneStep"></p>
+  <div id="tuneBody"></div>
+  <div class="closeRow">
+    <button class="secondary left" id="tuneDiscard" title="Forget this tuning; the model keeps the settings it has">Discard</button>
+    <button class="secondary" id="tuneClose" title="Renders carry on; open Tune again to continue">Close</button>
+  </div>
 </dialog>
 
 <dialog id="notice">
@@ -1026,6 +1069,212 @@ async function saveCivitai(key, row) {
   renderModelsTable();
 }
 
+// ---- Tune (app/tune.py) ------------------------------------------------------
+// A model set up from its class carries settings that do not always carry over
+// between finetunes; this renders the alternatives and asks which looks right.
+// The page never knows which picture is which setting until the review -- the
+// server keeps the labels back -- so a pick is a judgement of the picture.
+function tuneCell(m) {
+  if (!m.can_tune) return `<td></td>`;
+  return `<td><button class="secondary tuneBtn" title="Render this model's settings against the alternatives and pick what looks right. Its settings were set up for its kind, not measured on it.">${m.tuning ? "Continue tuning" : "Tune…"}</button></td>`;
+}
+
+const TUNE_ROUNDS = {
+  class: "Kind of model",
+  sampler: "Sampler and cfg",
+  size: "Final size",
+  steps: "Final steps",
+};
+let TUNE = null, TUNE_TIMER = null;
+
+async function openTune(key) {
+  $("#tuneBody").innerHTML = `<p class="hint">Loading…</p>`;
+  try {
+    TUNE = await api(`/api/tune/${encodeURIComponent(key)}`).catch(async e => {
+      if (!/not being tuned/.test(e.message)) throw e;
+      return api(`/api/tune/${encodeURIComponent(key)}`, { method: "POST" });
+    });
+  } catch (e) {
+    toast("Could not start tuning: " + e.message);
+    return;
+  }
+  drawTune();
+  $("#tuneDlg").showModal();
+}
+
+function tuneWait(s) {
+  if (s == null) return "";
+  return s < 90 ? `about ${Math.max(1, Math.round(s))}s left` : `about ${Math.round(s / 60)} min left`;
+}
+
+function tuneImg(cell, crop) {
+  return `/api/tune/${encodeURIComponent(TUNE.key)}/cells/${encodeURIComponent(cell.id)}.png`;
+}
+
+function drawTune() {
+  clearTimeout(TUNE_TIMER);
+  const t = TUNE, body = $("#tuneBody");
+  $("#tuneTitle").textContent = `Tune ${t.label}`;
+  // the rounds this tuning has: the kind-of-model round only where the
+  // architecture has more than one, sampler and cfg only above cfg 1
+  const rounds = t.rounds || Object.keys(TUNE_ROUNDS);
+  $("#tuneStep").textContent = t.phase === "review" ? "Review" :
+    `Round ${rounds.indexOf(t.round) + 1} of ${rounds.length} · ${TUNE_ROUNDS[t.round]}${
+      t.attempt > 1 ? ` · try ${t.attempt}` : ""}`;
+  if (t.phase === "rendering") {
+    const total = t.questions.reduce((a, q) => a + q.cells.length, 0);
+    body.innerHTML = `<p class="hint">Rendering ${total - t.pending + 1} of ${total}${
+      t.estimate_s ? ` · ${tuneWait(t.estimate_s)}` : ""}. Renders go one at a time beside your own;
+      you can close this and come back.</p>`;
+    TUNE_TIMER = setTimeout(pollTune, 2500);
+    return;
+  }
+  if (t.phase === "failed") {
+    const errs = [...new Set(t.questions.flatMap(q => q.cells).filter(c => c.error).map(c => c.error))];
+    body.innerHTML = `<p class="hint">Nothing in this round came back as a picture to judge:</p>
+      <ul class="tuneNotes">${errs.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+      <div class="tuneAnswers"><button id="tuneRetry">Render them again</button></div>`;
+    $("#tuneRetry").onclick = () => tunePost("retry");
+    return;
+  }
+  if (t.phase === "review") { drawTuneReview(); return; }
+  body.innerHTML = tuneIntro(t.round) + t.questions.map(tuneQuestion).join("") +
+    (t.round === "steps" ? `<div class="tuneAnswers"><button class="secondary" id="tuneSkip">Skip this round</button></div>` : "");
+  body.querySelectorAll("[data-answer]").forEach(b => b.onclick = () => {
+    const a = b.dataset.answer;
+    tuneAnswer(b.closest("[data-q]").dataset.q, /^\d+$/.test(a) ? Number(a) : a);
+  });
+  const skip = $("#tuneSkip");
+  if (skip) skip.onclick = () => tunePost("skip");
+}
+
+function tuneIntro(round) {
+  if (round === "class") return `<p class="hint">Models of this architecture come in kinds the file
+    cannot tell apart — anime models trained on Danbooru tags, and general or photographic ones — and each kind is
+    prompted differently. These are the same scene written the way each kind is prompted, shuffled. Pick the one
+    that looks right on each seed; the rest of the rounds start from it. <b>Can't tell</b> keeps what the model has.</p>`;
+  if (round === "sampler") return `<p class="hint">Four settings, shuffled, at 1:1. Pick the cleanest on each seed:
+    look for coloured speckle on skin, hair edges and metal, and for waxy or unformed faces. A change is only made
+    when the same one is picked on both seeds; <b>Can't tell</b> keeps what the model has.</p>`;
+  if (round === "size") return `<p class="hint">The scene asks for one woman. A model asked for more pixels than it
+    learned to compose often draws the figure twice; if any picture shows more than one person, the size steps down
+    and this round renders again.</p>`;
+  return `<p class="hint">The same picture at two step counts, shuffled, at 1:1. Fewer steps are taken unless you
+    pick the other on a seed — fewer steps are a faster final.</p>`;
+}
+
+function tuneQuestion(q, i) {
+  const opts = q.cells.map((c, j) => c.status === "done"
+    ? `<button class="tuneOpt${q.answer === j ? " picked" : ""}" data-answer="${j}">
+         <img class="${q.crop ? "crop" : "whole"}" src="${tuneImg(c)}" alt="">
+         ${q.kind === "count" ? "" : `<span class="tag">${"ABCD"[j]}</span>`}</button>`
+    : `<div class="tuneOpt failed"><span class="tag">${q.kind === "count" ? "" : "ABCD"[j]}</span>${esc(c.error || "not rendered")}</div>`
+  ).join("");
+  const ask = q.round === "class" ? `Seed ${i + 1}: which looks right?`
+    : q.kind === "pick" ? `Seed ${i + 1}: which is cleanest?`
+    : q.kind === "ab" ? `Seed ${i + 1}: is one better?`
+    : `How many people are in this picture?`;
+  const extra = q.kind === "pick" ? [["cant_tell", "Can't tell"]]
+    : q.kind === "ab" ? [["same", "No difference"]]
+    : [["one", "One"], ["more", "More than one"]];
+  return `<div data-q="${esc(q.id)}"><p class="tuneQ">${ask}</p>
+    <div class="tuneGrid">${q.kind === "count"
+      ? opts.replace(/data-answer="\d+"/, "")   // the frame itself is not an answer
+      : opts}</div>
+    <div class="tuneAnswers">${extra.map(([a, l]) =>
+      `<button class="secondary${q.answer === a ? " picked" : ""}" data-answer="${a}">${l}</button>`).join("")}</div></div>`;
+}
+
+const TUNE_FIELDS = {
+  class: "Kind",
+  sampler: "Sampler", cfg: "cfg", final_size: "Final size", final_steps: "Final steps",
+  aspect_size: "Shape budget",
+};
+
+function drawTuneReview() {
+  const t = TUNE, ch = Object.entries(t.changes);
+  $("#tuneBody").innerHTML = `
+    <ul class="tuneNotes">${t.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>
+    ${ch.length ? `<table><thead><tr><th></th><th>was</th><th>now</th></tr></thead><tbody>${
+      ch.map(([k, [a, b]]) => `<tr><td>${TUNE_FIELDS[k] || k}</td><td>${esc(String(a))}</td><td><b>${esc(String(b))}</b></td></tr>`).join("")
+    }</tbody></table>` : `<p class="hint">Nothing your picks preferred differs from what the model has.</p>`}
+    <p class="hint">Saved into this model's entry as your picks, not a measurement. A step count you typed in the
+      table still applies over the final steps here.</p>
+    <div class="tuneAnswers"><button id="tuneApply">${ch.length ? "Save these settings" : "Done"}</button></div>`;
+  $("#tuneApply").onclick = applyTune;
+}
+
+async function pollTune() {
+  if (!TUNE || !$("#tuneDlg").open) return;
+  try {
+    TUNE = await api(`/api/tune/${encodeURIComponent(TUNE.key)}`);
+  } catch (e) {
+    toast("Tuning: " + e.message);
+    return;
+  }
+  drawTune();
+}
+
+async function tuneAnswer(question, answer) {
+  try {
+    TUNE = await api(`/api/tune/${encodeURIComponent(TUNE.key)}/answer`,
+      { method: "POST", body: { question, answer } });
+  } catch (e) {
+    toast("Could not save the answer: " + e.message);
+  }
+  drawTune();
+}
+
+async function tunePost(what) {
+  try {
+    TUNE = await api(`/api/tune/${encodeURIComponent(TUNE.key)}/${what}`, { method: "POST" });
+  } catch (e) {
+    toast("Tuning: " + e.message);
+  }
+  drawTune();
+}
+
+async function applyTune() {
+  try {
+    const res = await api(`/api/tune/${encodeURIComponent(TUNE.key)}/apply`, { method: "POST" });
+    toast(res.message);
+  } catch (e) {
+    toast("Could not save the settings: " + e.message);
+    return;
+  }
+  closeTune();
+  MODELS = await api("/api/models");
+  renderModelChips();
+  renderModelsTable();
+}
+
+function closeTune() {
+  clearTimeout(TUNE_TIMER);
+  $("#tuneDlg").close();
+  // emptied, not left: a reopened dialog would show the last round's pictures,
+  // clickable, until the fresh state arrived and replaced them under the cursor
+  $("#tuneBody").innerHTML = "";
+  TUNE = null;
+}
+
+$("#tuneClose").onclick = async () => {
+  closeTune();
+  MODELS = await api("/api/models");
+  renderModelsTable();
+};
+$("#tuneDiscard").onclick = async () => {
+  if (!TUNE) return;
+  try {
+    await api(`/api/tune/${encodeURIComponent(TUNE.key)}`, { method: "DELETE" });
+    toast(`${TUNE.label}: tuning discarded, settings unchanged`);
+  } catch (e) {
+    toast("Could not discard: " + e.message);
+  }
+  closeTune();
+  MODELS = await api("/api/models");
+  renderModelsTable();
+};
+
 // One tick per optional LoRA the model offers (LoraOption in app/schemas.py).
 // Ticking one changes more than the LoRA -- an accelerator brings its own
 // steps and cfg, and at CFG 1 the negative prompt goes -- so the row's step
@@ -1094,11 +1343,12 @@ function renderModelsTable() {
       <td>${stepsInput(m, "final")}</td>
       ${lorasCell(m)}
       ${civitaiCell(m)}
+      ${tuneCell(m)}
       <td><button class="rowReset" ${atDefaultSteps(m) ? "disabled" : ""}
         title="Back to ${m.draft.default_steps} draft / ${m.final.default_steps} final">reset</button></td>
     </tr>`).join("");
   $("#stepsRows").innerHTML =
-    `<table><thead><tr><th></th><th>model</th><th>draft</th><th>final</th><th>LoRA</th><th>Civitai</th><th></th></tr></thead>
+    `<table><thead><tr><th></th><th>model</th><th>draft</th><th>final</th><th>LoRA</th><th>Civitai</th><th></th><th></th></tr></thead>
      <tbody>${rows}</tbody></table>`;
   // video models get a tick and nothing else: their step count is part of a
   // tuned pair (see config/models.yaml) and is not offered here
@@ -1116,6 +1366,8 @@ function renderModelsTable() {
     b.onclick = () => saveCivitai(b.closest("tr").dataset.key, b.closest("tr")));
   $("#stepsRows").querySelectorAll(".civitaiRef").forEach(i =>
     i.onkeydown = (e) => { if (e.key === "Enter") saveCivitai(i.closest("tr").dataset.key, i.closest("tr")); });
+  $("#stepsRows").querySelectorAll(".tuneBtn").forEach(b =>
+    b.onclick = () => openTune(b.closest("tr").dataset.key));
   $("#stepsRows").querySelectorAll(".loraTick").forEach(t =>
     t.onchange = () => saveLora(t.closest("tr").dataset.key, t.dataset.option, t.checked));
   $("#stepsDlg").querySelectorAll(".modelTick").forEach(t =>

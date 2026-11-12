@@ -39,7 +39,7 @@ space for two copies, so leave some room to spare.
 
 ## The models
 
-**From Draw Things' catalogue**: FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo,
+**From Draw Things' catalogue**: FLUX.3 klein, FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo,
 Krea 2 Turbo, Juggernaut XL Ragnarok, Qwen Image and Qwen Image Edit. The setup
 script lists them by the names Draw Things' search box finds them under, and
 they need no Civitai account.

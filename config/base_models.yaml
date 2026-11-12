@@ -31,10 +31,12 @@ profiles:
       # upscale, and four render their final at 1536 in 20 steps. The fifth
       # holds its final at 1024 because at 1536 and 24 steps it drew the figure
       # twice -- which is why the final here is 20 steps, not more. All six
-      # share the 1024 shape limit. Sampler: four of the six measured best on
-      # DPM++ 2M Karras, where Euler a, the family's usual recommendation, left
-      # a cyan cast and colour fringing; two measured best on Euler a. cfg 5 is
-      # the middle of the 4-6 they were measured at.
+      # share the 1024 shape limit. Sampler: DPM++ 2M Karras on all six. Euler
+      # a, the family's usual recommendation, left a cyan cast and colour
+      # fringing on four; the two that once measured clean on it had been
+      # rendered without their opener and negative, and with them Euler a
+      # smears metal and hair on both. cfg 5 is the middle of the 4-6 they
+      # were measured at.
       aspect_size: 1024
       sampler: "DPM++ 2M Karras"
       cfg: 5.0
@@ -53,6 +55,50 @@ profiles:
       draft: { size: 768, steps: 14, cfg: 5.0, sampler: "DPM++ 2M Karras" }
       final: { size: 1536, steps: 20, strength: 0.5 }
       upscale: { size: 2048, steps: 20, strength: 0.3 }
+
+  # Animagine XL: SDXL architecture, Danbooru-trained, and not Illustrious.
+  # Civitai files it under "SDXL 1.0" with the photographic finetunes, so the
+  # name decides here as it does for Illustrious; without this it was set up
+  # as plain SDXL and its prompts were written as prose with lens talk.
+  animagine:
+    civitai_base_models: ["SDXL 1.0"]
+    draw_things_version: "sdxl_base_v0.9"
+    name_hints: ["animagine"]
+    settings:
+      # Animagine XL v3.1 from Draw Things' catalogue, measured with
+      # add_model.py --like juggernaut-ragnarok --level confirm, 12 November
+      # 2026, then re-checked with its opener and negative, because that run
+      # sent a bare prose prompt and every frame came back soft. The opener
+      # and the negative are what make this model sharp: the same seed with
+      # them has defined eyes, separate hair strands and armour detail, and
+      # without them is dark and muddy. Its card says Euler a; with the tags
+      # in place Euler a still puts green and purple fringes and fine
+      # horizontal banding on the hair at cfg 7 and 5 alike, where DPM++ 2M
+      # Karras is clean. cfg 7, the top of the card's 5-7: no burn there, and
+      # at 4.5 the asked-for black hair drifted. Clip skip 2 changes nothing
+      # visible, so it is left at 1. The 1024 final drew one figure on both
+      # seeds; a 1536 final is what Illustrious learned past base SDXL. The
+      # prompt side is the Illustrious profile's (same Danbooru vocabulary,
+      # same CLIP pair). Not measured: the final's step count (the card's) and
+      # the draft's 14 steps (inherited).
+      aspect_size: 1024
+      sampler: "DPM++ 2M Karras"
+      cfg: 7.0
+      uses_negative_prompt: true
+      prompt_style: tags
+      quality_prefix: "masterpiece, best quality, very aesthetic, absurdres"
+      prompt_guidance: |
+        Describe the picture in prose -- ordinary sentences, using Danbooru's
+        exact wording wherever it has a word for what you mean (1girl, twin
+        braids, from above, looking at viewer) and plain English wherever it does
+        not. Cover subject count first, then character and series when the
+        subject is a known character, appearance, clothing, expression and pose,
+        scene, lighting, composition, style. Say which subject has which feature
+        and where each thing is in sentences. No artist names.
+      prompt_budget: { full: 240, fading: 600 }
+      draft: { size: 768, steps: 14 }
+      final: { size: 1024, steps: 28, strength: 0.5 }
+      upscale: { size: 2048, steps: 24, strength: 0.35 }
 
   # Anima (Cosmos 2.5 2B) and its finetunes.
   anima:

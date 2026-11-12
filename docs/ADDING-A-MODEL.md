@@ -57,7 +57,14 @@ What the entry gets:
   models of that base measured here agree on. A sound start, not a measurement
   of your checkpoint. Draw Things says whether it is an Anima or an SDXL
   model; an SDXL one whose name says *Illustrious* or *Noob* gets the
-  Illustrious settings, and any other the plain SDXL ones.
+  Illustrious settings, one whose name says *Animagine* the Animagine ones,
+  and any other the plain SDXL ones. A model set up as plain SDXL before the
+  app knew its name is moved to its own settings on the next start, unless
+  you have changed them or named its Civitai version.
+
+A model set up with its kind's settings has a **Tune…** button in the **⚙**
+dialog, which renders its sampler, cfg and final size against the alternatives
+and lets you pick ([Guide](GUIDE.md#tuning-a-model-you-imported)).
 
 A model the app already has, imported again under another name, is the same
 model: it is not added a second time.
@@ -124,7 +131,8 @@ Options:
 
 | flag | use |
 |---|---|
-| `--tags` | the checkpoint is Danbooru or booru-trained |
+| `--tags` | the checkpoint is Danbooru or booru-trained: every render gets the tag models' quality opener and negative prompt, as the app would send them |
+| `--opener`, `--negative` | the quality tags and negative prompt the model card gives, in place of the defaults. A tag model rendered without them comes out soft, and judging it that way judges the wrong thing |
 | `--level quick` | about 18 renders instead of 30, for a slow model |
 | `--label` | UI label; defaults to the name Draw Things has |
 | `--final` | candidate final size, default 1024 |
@@ -159,6 +167,7 @@ This takes about a quarter of an hour instead of an hour.
 |---|---|
 | `--like` | the sibling to inherit geometry from. Must be a **measured** key and must match on architecture; the script checks both and refuses otherwise |
 | `--card-sampler`, `--card-cfg`, `--card-steps` | what the model card recommends. A Civitai import is not in the Draw Things catalogue, so the card is the only other source there is |
+| `--tags`, `--opener`, `--negative` | as above; for a Danbooru model, always one of them |
 
 It prints every setting it copied, and writes three comparison sheets under
 `research/confirm/<key>/`:

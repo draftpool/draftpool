@@ -38,7 +38,7 @@ models:
 # what the comment above an entry says when a script or startup wrote it from
 # a profile or the tuned file: settings nobody measured on that file here
 ADDED_MARKS = ("by scripts/add_civitai_model.py", "on startup: installed in Draw Things",
-               "given in the settings dialog")
+               "in the settings dialog", "on startup from the")
 
 
 def added_keys(path: Path) -> set[str]:
@@ -224,23 +224,43 @@ def load_profiles(path: Path = PROFILES_PATH) -> dict:
     return (yaml.safe_load(path.read_text()) or {}).get("profiles") or {}
 
 
+def _by_name(candidates: list[str], name: str, profiles: dict) -> str | None:
+    """Of profiles that fit equally, the one `name` hints at; else the one
+    without hints; else None (two hinted, or two plain)."""
+    name = name.lower()
+    hinted = [k for k in candidates if any(h in name for h in profiles[k].get("name_hints") or ())]
+    if hinted:
+        return hinted[0] if len(hinted) == 1 else None
+    plain = [k for k in candidates if not profiles[k].get("name_hints")]
+    return plain[0] if len(plain) == 1 else None
+
+
 def class_of(imported: dict, profiles: dict) -> str | None:
     """The profile an import fits by what Draw Things says of it alone, or None.
 
-    The architecture picks the class; where two classes share one
-    (Illustrious and plain SDXL), the import's name decides by the profile's
-    `name_hints`, and the class without hints takes the rest -- a plain SDXL
-    prose setup works on any SDXL, an Illustrious one does not.
+    The architecture picks the class; where several classes share one
+    (Illustrious, Animagine and plain SDXL), the import's name decides by the
+    profile's `name_hints`, and the class without hints takes the rest -- a
+    plain SDXL prose setup works on any SDXL, a Danbooru one does not.
     """
     hits = [k for k, p in profiles.items() if p["draw_things_version"] == imported.get("version")]
     if len(hits) <= 1:
         return hits[0] if hits else None
-    name = f"{imported.get('file', '')} {imported.get('name', '')}".lower()
-    hinted = [k for k in hits if any(h in name for h in profiles[k].get("name_hints") or ())]
-    if hinted:
-        return hinted[0] if len(hinted) == 1 else None
-    plain = [k for k in hits if not profiles[k].get("name_hints")]
-    return plain[0] if len(plain) == 1 else None
+    return _by_name(hits, f"{imported.get('file', '')} {imported.get('name', '')}", profiles)
+
+
+def class_for_base(base_model: str | None, name: str, profiles: dict) -> str | None:
+    """The profile serving Civitai's "Base Model" value, or None.
+
+    Civitai's value is not always a class: it files Animagine, a Danbooru
+    model, under "SDXL 1.0" with the photographic finetunes. Where several
+    profiles serve one value, `name` (the import's and Civitai's names)
+    decides the way it does for class_of.
+    """
+    hits = [k for k, p in profiles.items() if base_model in (p.get("civitai_base_models") or ())]
+    if len(hits) <= 1:
+        return hits[0] if hits else None
+    return _by_name(hits, name, profiles)
 
 
 class _Block(str):

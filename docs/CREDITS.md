@@ -19,7 +19,8 @@ them (see the [README](../README.md#license)).
   vision model.
 
 **Image models from Draw Things' catalogue**
-- [FLUX.2 \[klein\] 9B](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B)
+- [FLUX.3 \[klein\] 5.6B](https://huggingface.co/black-forest-labs/flux-3-image-klein),
+  [FLUX.2 \[klein\] 9B](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B)
   and [FLUX.1 \[schnell\]](https://huggingface.co/black-forest-labs/FLUX.1-schnell):
   Black Forest Labs.
 - [Z-Image Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo): Alibaba

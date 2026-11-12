@@ -293,3 +293,161 @@ def test_a_confirm_run_reaches_its_report(tmp_path, capsys):
     assert confirm(Stub(), tmp_path, "m.ckpt", "new-key", "sib-key", sib,
                    ["Euler a"], [4.0, 2.5], 4) == 0
     assert "sweep_aspect.py --models new-key" in capsys.readouterr().out
+
+
+# -- what a measured cell is sent -------------------------------------------------
+#
+# Every add_model.py cell went out as bare prose with an empty negative, which a
+# Danbooru model never gets in the app (prompt_for, negative_for). Animagine's
+# whole confirm run came back soft for it, and the same seed with its opener and
+# negative is crisp (research/animagine-prompt/, MODEL-MEASUREMENTS.md).
+
+
+class _FakeDrawThings:
+    """httpx.Client for Renderer: records each payload, answers with a picture."""
+
+    sent: list = []
+
+    def __init__(self, *a, **kw):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def post(self, url, json):
+        import base64
+        import io
+
+        type(self).sent.append(json)
+        buf = io.BytesIO()
+        Image.effect_noise((64, 64), 64).convert("RGB").save(buf, "PNG")
+
+        class R:
+            status_code = 200
+
+            def json(self_inner):
+                return {"images": [base64.b64encode(buf.getvalue()).decode()]}
+        return R()
+
+
+@pytest.fixture
+def fake_dt(monkeypatch):
+    import scripts.add_model as am
+
+    _FakeDrawThings.sent = []
+    monkeypatch.setattr(am.httpx, "Client", _FakeDrawThings)
+    return _FakeDrawThings.sent
+
+
+def test_a_measured_cell_gets_the_opener_and_negative_and_the_control_does_not(tmp_path, fake_dt):
+    from scripts.add_model import Renderer
+
+    r = Renderer(tmp_path, "control.ckpt", opener="masterpiece, best quality",
+                 negative="lowres, worst quality")
+    r.render("cell", model="m.ckpt", prompt="A woman in armour.", width=64, height=64, steps=4)
+    r.render("_c", model="control.ckpt", prompt="a red cube", width=64, height=64, steps=4)
+    cell, control = fake_dt
+    assert cell["prompt"] == "masterpiece, best quality, A woman in armour."
+    assert cell["negative_prompt"] == "lowres, worst quality"
+    assert (control["prompt"], control["negative_prompt"]) == ("a red cube", "")
+
+
+def test_a_cell_measured_with_another_prompt_is_rendered_again(tmp_path, fake_dt):
+    from scripts.add_model import Renderer
+
+    Renderer(tmp_path, None).render("cell", model="m.ckpt", prompt="p", width=64,
+                                    height=64, steps=4)
+    again = Renderer(tmp_path, None, opener="masterpiece", negative="lowres")
+    rec = again.render("cell", model="m.ckpt", prompt="p", width=64, height=64, steps=4)
+    assert len(fake_dt) == 2 and rec["opener"] == "masterpiece"
+    # the same kit resumes as before
+    again.render("cell", model="m.ckpt", prompt="p", width=64, height=64, steps=4)
+    assert len(fake_dt) == 2
+
+
+def test_the_prompt_kit_takes_the_card_then_the_model_then_the_tag_default():
+    from types import SimpleNamespace
+
+    from app.schemas import DEFAULT_TAG_NEGATIVE, DEFAULT_TAG_PREFIX
+    from scripts.add_model import prompt_kit
+
+    tag_spec = SimpleNamespace(prompt_style="tags", quality_opener="score_9",
+                               default_negative="bad", uses_negative_prompt=True)
+    prose_spec = SimpleNamespace(prompt_style="prose", quality_opener="",
+                                 default_negative="", uses_negative_prompt=True)
+    assert prompt_kit(tags=False, opener="card", negative="neg", spec=tag_spec) == ("card", "neg")
+    assert prompt_kit(tags=False, opener=None, negative=None, spec=tag_spec) == ("score_9", "bad")
+    assert prompt_kit(tags=True, opener=None, negative=None, spec=None) == (
+        DEFAULT_TAG_PREFIX, DEFAULT_TAG_NEGATIVE)
+    # a model set up as prose but measured as tags: the flag wins over its entry
+    assert prompt_kit(tags=True, opener=None, negative=None, spec=prose_spec)[0] == DEFAULT_TAG_PREFIX
+    assert prompt_kit(tags=False, opener=None, negative=None, spec=prose_spec) == ("", "")
+
+
+def test_a_batch_always_finds_a_control_model_when_one_is_installed():
+    """The control used to be the first model drafting at 512 or less. Every
+    draft went to 768 (DRAFT-STEPS.md), the search found nothing, and a batch
+    ran with no control renders at all -- the bracketing FALSE-SUCCESS.md
+    exists for, silently gone. It only renders 256px at 4 steps, so the
+    criterion is a fast model that is installed, never the one measured."""
+    from types import SimpleNamespace
+
+    from scripts.add_model import control_model
+
+    def m(f, installed=True, edit=False):
+        return SimpleNamespace(dt_filename=f, installed=installed, edit_only=edit)
+
+    models = {"juggernaut-ragnarok": m("j.ckpt"), "z-image-turbo": m("z.ckpt"),
+              "qwen-edit": m("q.ckpt", edit=True)}
+    assert control_model(models, "new").dt_filename == "z.ckpt"
+    assert control_model(models, "z-image-turbo").dt_filename == "j.ckpt"
+    models["z-image-turbo"].installed = False
+    assert control_model(models, "new").dt_filename == "j.ckpt"
+    assert control_model({"qwen-edit": m("q.ckpt", edit=True)}, "new") is None
+
+
+def test_the_control_render_names_its_sampler(tmp_path, fake_dt):
+    """Sent without one, Draw Things uses whatever its UI is left on, and
+    Z-Image Turbo answered every control of a batch with an empty image --
+    the harness's own health check reporting a healthy session as stalled.
+    The same request with its sampler renders."""
+    from scripts.add_model import Renderer
+
+    r = Renderer(tmp_path, "control.ckpt", control_sampler="Euler A Trailing")
+    assert r.control()
+    assert fake_dt[0]["model"] == "control.ckpt"
+    assert fake_dt[0]["sampler_name"] == "Euler A Trailing"
+
+
+def test_a_control_that_draws_its_red_square_flat_is_a_pass(tmp_path, monkeypatch):
+    """The control asks for "a red square", and Z-Image Turbo draws exactly
+    that: a solid red frame, standard deviation about 1. The flat-colour
+    check, there for measured cells that came back as nothing, failed every
+    control of a batch on it. A control proves the session renders; a flat
+    frame of the colour it asked for does. A measured cell is still failed."""
+    import base64
+    import io
+
+    import scripts.add_model as am
+    from scripts.add_model import Renderer
+
+    class Flat(_FakeDrawThings):
+        def post(self, url, json):
+            buf = io.BytesIO()
+            Image.new("RGB", (64, 64), (206, 2, 7)).save(buf, "PNG")
+
+            class R:
+                status_code = 200
+
+                def json(self_inner):
+                    return {"images": [base64.b64encode(buf.getvalue()).decode()]}
+            return R()
+
+    monkeypatch.setattr(am.httpx, "Client", Flat)
+    r = Renderer(tmp_path, "control.ckpt", control_sampler="Euler A Trailing")
+    assert r.control()
+    cell = r.render("cell", model="m.ckpt", prompt="p", width=64, height=64, steps=4)
+    assert not cell["ok"] and "flat" in cell["why"]

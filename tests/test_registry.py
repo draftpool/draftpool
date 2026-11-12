@@ -673,3 +673,35 @@ def test_every_draft_has_a_long_side_of_at_least_768_at_every_ratio():
         if max(w, h) < 768
     }
     assert short == {}
+
+
+def test_a_measurement_renders_the_file_that_is_installed(tmp_path):
+    """The sweep scripts sent the configured file name verbatim, so a model
+    installed as another quantisation (flux_3_klein_i8x for the configured
+    q8p) answered 422 "Unrecognized model name" on every cell. They load
+    through load_for_measuring now, which matches what is on disk the way the
+    app does at startup -- and follows an import renamed under another name."""
+    import json
+
+    from app.registry import load_for_measuring
+
+    models = tmp_path / "Models"
+    models.mkdir()
+    (models / "flux_3_klein_i8x.ckpt").touch()
+    (models / "renamed_upload_f16.ckpt").touch()
+    cfg = tmp_path / "models.yaml"
+    cfg.write_text(
+        f'draw_things:\n  models_dirs: ["{models}"]\n\nmodels:\n'
+        "  klein:\n    label: K\n    dt_filename: flux_3_klein_q8p.ckpt\n"
+        "    draft: { size: 512, steps: 4 }\n    final: { size: 1024, steps: 8 }\n"
+        "    upscale: { size: 2048, steps: 8, strength: 0.3 }\n"
+        "  mine:\n    label: M\n    dt_filename: mine_v1_f16.ckpt\n"
+        "    draft: { size: 512, steps: 4 }\n    final: { size: 1024, steps: 8 }\n"
+        "    upscale: { size: 2048, steps: 8, strength: 0.3 }\n")
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "migrations.json").write_text(json.dumps({"installed_models": {
+        "renamed_upload_f16.ckpt": {"how": "alias", "key": "mine", "on": "2026-11-12"}}}))
+    reg = load_for_measuring(cfg, data_dir=data)
+    assert reg.models["klein"].dt_filename == "flux_3_klein_i8x.ckpt"
+    assert reg.models["mine"].dt_filename == "renamed_upload_f16.ckpt"

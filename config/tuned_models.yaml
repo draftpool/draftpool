@@ -29,7 +29,7 @@ tuned:
     - 0d452975a9d7a87ffc2efac08db537fb4b0a34794ab604c1654a0724b06ff07b
     - 1dcddf10adc5d37e88ed7a553c26ffbbc10f575c73666b7670a74d37414b12ea
     settings:
-      sampler: Euler a
+      sampler: DPM++ 2M Karras
       cfg: 5.0
       uses_negative_prompt: true
       prompt_style: tags
@@ -50,7 +50,7 @@ tuned:
         size: 768
         steps: 14
         cfg: 5.0
-        sampler: Euler a
+        sampler: DPM++ 2M Karras
       final:
         size: 1536
         steps: 20
@@ -219,7 +219,7 @@ tuned:
     - 535eaeb9609c209320ad3c57035fbcceae9e2e7373babed213eb708cf2b25439
     - fdd1c3baa9b48046c81a1fa7374f78965359635b0a03d9d66200a1620f0b1cec
     settings:
-      sampler: Euler a
+      sampler: DPM++ 2M Karras
       cfg: 5.0
       uses_negative_prompt: true
       prompt_style: tags
@@ -244,7 +244,7 @@ tuned:
         size: 768
         steps: 14
         cfg: 5.0
-        sampler: Euler a
+        sampler: DPM++ 2M Karras
       final:
         size: 1024
         steps: 20

@@ -43,6 +43,7 @@ stays deleted, proven on a copy first, never fatal.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -56,7 +57,8 @@ import yaml
 
 from . import DATA_DIR, ROOT
 from .private_models import (
-    append_entry, civitai_version, class_of, entry_block, file_digest, fingerprint,
+    added_keys, append_entry, civitai_version, class_for_base, class_of, entry_block,
+    file_digest, fingerprint,
     imported_models, load_profiles, load_tuned, replace_entry, slug, PROFILES_PATH, TUNED_PATH,
 )
 from .registry import (
@@ -74,6 +76,8 @@ RETIRED: set[str] = set()
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 # the fields an entry carries that are not settings
 _IDENTITY = ("label", "dt_filename", "civitai_version_id")
+# all an entry says about which file it is, as opposed to how it renders
+_WHICH_FILE = (*_IDENTITY, "fingerprints")
 
 
 def _git(root: Path, *args: str) -> str | None:
@@ -403,8 +407,7 @@ def identify_model(key: str, version_id: int, *, config_path: Path = CONFIG_PATH
         info = {"id": version_id}
     name = (f"{info['model']} {info.get('version') or ''}".strip() if info.get("model") else None)
 
-    identity = ("label", "dt_filename", "civitai_version_id", "fingerprints")
-    current = {k: v for k, v in entry.items() if k not in identity}
+    current = {k: v for k, v in entry.items() if k not in _WHICH_FILE}
     row = tuned.get(version_id)
     if row:
         if arch and arch != row["draw_things_version"]:
@@ -414,17 +417,19 @@ def identify_model(key: str, version_id: int, *, config_path: Path = CONFIG_PATH
         label = row.get("label") or name or entry["label"]
     else:
         label = entry["label"]
-        right = [k for k, p in profiles.items()
-                 if info.get("base_model") in (p.get("civitai_base_models") or ())]
-        on_profile = next((k for k, p in profiles.items() if p["settings"] == current), None)
+        served = [k for k, p in profiles.items()
+                  if info.get("base_model") in (p.get("civitai_base_models") or ())]
+        right = class_for_base(info.get("base_model"),
+                               f"{entry['dt_filename']} {entry['label']} {name or ''}", profiles)
+        on_profile = _on_profile(current, profiles)
         settings, how = current, "credited; its settings are kept"
-        if right and arch and profiles[right[0]]["draw_things_version"] != arch:
+        if served and arch and profiles[served[0]]["draw_things_version"] != arch:
             raise ValueError(f"Civitai says version {version_id} is a {info['base_model']} "
                              f"model, and this import is {arch}: is it the right file?")
-        if right and on_profile and on_profile != right[0]:
-            settings = profiles[right[0]]["settings"]
-            how = f"set up as {right[0]} (it was {on_profile})"
-        elif not right and info.get("base_model"):
+        if right and on_profile and on_profile != right:
+            settings = profiles[right]["settings"]
+            how = f"set up as {right} (it was {on_profile})"
+        elif not served and info.get("base_model"):
             how = f"credited; no profile for {info['base_model']}, so its settings are kept"
     new = {"label": label, "dt_filename": entry["dt_filename"], "civitai_version_id": version_id,
            **({"fingerprints": entry["fingerprints"]} if entry.get("fingerprints") else {}),
@@ -442,6 +447,156 @@ def identify_model(key: str, version_id: int, *, config_path: Path = CONFIG_PATH
         private.write_text(before)
         raise ValueError(f"the entry did not load, nothing was changed: {exc}") from exc
     return f"{label}: {how}."
+
+
+def _on_profile(settings: dict, profiles: dict) -> str | None:
+    """The class profile these settings are exactly, untouched, or None."""
+    return next((k for k, p in profiles.items() if p["settings"] == settings), None)
+
+
+def reclass_guessed_models(*, config_path: Path = CONFIG_PATH, data_dir: Path = DATA_DIR,
+                           profiles_path: Path = PROFILES_PATH,
+                           today: str | None = None) -> list[str]:
+    """Move a model set up by class to the class its name now says; the keys moved.
+
+    wire_installed_models picks a class once and never looks again, so a
+    release that teaches the classes a new name (Animagine, a Danbooru model
+    once set up as plain SDXL with prose and lens talk) would otherwise leave
+    every model it already guessed wrong where it was. A model is moved only
+    while its settings are still exactly a profile's, so nothing edited by
+    hand or measured is touched, and never once Civitai has named its version
+    (identify_model has decided its class from the version itself). Each move
+    is recorded (DATA_DIR/MARKER, `reclassed`) and not made twice, so one the
+    user puts back stays back. Proven by loading the registry; put back if not.
+    """
+    private = private_path(config_path)
+    if not private.is_file():
+        return []
+    entries = (yaml.safe_load(private.read_text()) or {}).get("models") or {}
+    profiles = load_profiles(profiles_path)
+    marker = _read_marker(data_dir)
+    done = marker.get("reclassed") or {}
+    stamp = today or date.today().isoformat()
+    moved: list[str] = []
+    for key, entry in entries.items():
+        if key in done or not isinstance(entry, dict) or entry.get("civitai_version_id"):
+            continue
+        was = _on_profile({k: v for k, v in entry.items() if k not in _WHICH_FILE}, profiles)
+        if not was:
+            continue
+        now = class_of({"file": str(entry.get("dt_filename") or ""),
+                        "name": str(entry.get("label") or ""),
+                        "version": profiles[was]["draw_things_version"]}, profiles)
+        if not now or now == was:
+            continue
+        # in the order wire_installed_models writes them
+        new = {k: entry[k] for k in _IDENTITY if k in entry}
+        new.update(json.loads(json.dumps(profiles[now]["settings"])))
+        if entry.get("fingerprints"):
+            new["fingerprints"] = entry["fingerprints"]
+        comment = [f"Moved {stamp} on startup from the {was} profile to the {now} profile,",
+                   "the class its name fits (config/base_models.yaml): its class's settings,",
+                   "not measured on this checkpoint. scripts/add_civitai_model.py --air or",
+                   "--hash adds the credit."]
+        before = private.read_text()
+        replace_entry(private, key, entry_block(key, new, comment))
+        try:
+            load_registry(config_path)
+        except Exception:  # noqa: BLE001 - leave it as it was rather than unable to start
+            log.exception("moving %s to the %s profile did not load; left as it was", key, now)
+            private.write_text(before)
+            continue
+        done[key] = {"from": was, "to": now, "on": stamp}
+        moved.append(key)
+    if moved:
+        marker["reclassed"] = done
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / MARKER).write_text(json.dumps(marker, indent=2) + "\n")
+    return moved
+
+
+def release_tuned(root: Path = ROOT) -> list[tuple[str, dict[int, dict]]]:
+    """(tag, tuned rows) for every release tag in the clone that has the file."""
+    if not (root / ".git").exists():
+        return []
+    tags = [t for t in (_git(root, "tag", "-l", "v*") or "").split() if _TAG.match(t)]
+    tags.sort(key=lambda t: tuple(int(x) for x in _TAG.match(t).groups()))
+    out = []
+    for tag in tags:
+        text = _git(root, "show", f"{tag}:config/tuned_models.yaml")
+        try:
+            rows = (yaml.safe_load(text) or {}).get("tuned") or {} if text else {}
+        except yaml.YAMLError:
+            continue
+        if rows:
+            out.append((tag, {int(k): v for k, v in rows.items()}))
+    return out
+
+
+def refresh_measured_models(*, root: Path = ROOT, config_path: Path = CONFIG_PATH,
+                            data_dir: Path = DATA_DIR, tuned_path: Path = TUNED_PATH,
+                            today: str | None = None) -> list[str]:
+    """Move a model set up from a measured version onto that version's new numbers.
+
+    A measured version's settings are copied into the user's entry when the
+    import is set up, so a later release that re-measures it (two Illustrious
+    versions went from Euler a to DPM++ 2M Karras once a control with their
+    real prompt showed the smears) would otherwise never reach them. An entry
+    moves only when it was written for the user (private_models.added_keys,
+    so never this checkout's own measured source) and its settings are still
+    exactly what some earlier release's row said -- edited by hand or picked
+    with Tune, it is left alone. Recorded per version and row (DATA_DIR/MARKER,
+    `refreshed`), so an entry put back by hand stays back. Proven by loading
+    the registry; put back if not.
+    """
+    private = private_path(config_path)
+    if not private.is_file():
+        return []
+    current = load_tuned(tuned_path)
+    history = release_tuned(root)
+    entries = (yaml.safe_load(private.read_text()) or {}).get("models") or {}
+    mine = added_keys(private)
+    marker = _read_marker(data_dir)
+    done = marker.get("refreshed") or {}
+    stamp = today or date.today().isoformat()
+    moved: list[str] = []
+    for key, entry in entries.items():
+        vid = entry.get("civitai_version_id") if isinstance(entry, dict) else None
+        if key not in mine or vid not in current:
+            continue
+        target = current[vid]["settings"]
+        mark = hashlib.sha256(json.dumps(target, sort_keys=True).encode()).hexdigest()[:16]
+        if done.get(key) == mark:
+            continue
+        have = {k: v for k, v in entry.items() if k not in _WHICH_FILE}
+        if have == target:
+            continue
+        was = next((tag for tag, rows in reversed(history)
+                    if rows.get(vid, {}).get("settings") == have), None)
+        if was is None:
+            continue
+        new = {k: entry[k] for k in _IDENTITY if k in entry}
+        new.update(json.loads(json.dumps(target)))
+        if entry.get("fingerprints"):
+            new["fingerprints"] = entry["fingerprints"]
+        comment = [f"Updated {stamp} on startup from the measured settings for this version:",
+                   f"they changed after {was} (config/tuned_models.yaml), and this entry still",
+                   "had the old ones."]
+        before = private.read_text()
+        replace_entry(private, key, entry_block(key, new, comment))
+        try:
+            load_registry(config_path)
+        except Exception:  # noqa: BLE001
+            log.exception("updating %s to its measured settings did not load; left as it was", key)
+            private.write_text(before)
+            continue
+        done[key] = mark
+        moved.append(key)
+    if moved:
+        marker["refreshed"] = done
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / MARKER).write_text(json.dumps(marker, indent=2) + "\n")
+    return moved
 
 
 def _folder_of(file: str, dirs: list[str]) -> str:
@@ -472,7 +627,8 @@ def file_aliases(data_dir: Path = DATA_DIR) -> dict[str, str]:
 
 
 def run_on_startup() -> None:
-    """migrate_dropped_models, then wire_installed_models: logged, and never fatal."""
+    """migrate_dropped_models, refresh_measured_models, reclass_guessed_models,
+    then wire_installed_models: logged, and never fatal."""
     if os.environ.get("DRAFTPOOL_NO_MIGRATE"):
         return
     try:
@@ -483,6 +639,22 @@ def run_on_startup() -> None:
         if added:
             log.info("migrated %d model(s) an earlier release shipped: %s",
                      len(added), ", ".join(added))
+    try:
+        refreshed = refresh_measured_models()
+    except Exception:  # noqa: BLE001
+        log.exception("updating measured models failed; config left as it was")
+    else:
+        if refreshed:
+            log.info("updated %d model(s) to their re-measured settings: %s",
+                     len(refreshed), ", ".join(refreshed))
+    try:
+        moved = reclass_guessed_models()
+    except Exception:  # noqa: BLE001
+        log.exception("moving guessed models to their class failed; config left as it was")
+    else:
+        if moved:
+            log.info("moved %d model(s) to the class their name fits: %s",
+                     len(moved), ", ".join(moved))
     try:
         wired = wire_installed_models()
     except Exception:  # noqa: BLE001

@@ -520,6 +520,27 @@ def load_registry(path: Path = CONFIG_PATH, *, lora_options: bool = True) -> Reg
     return registry
 
 
+def load_for_measuring(path: Path = CONFIG_PATH, *, lora_options: bool = False,
+                       data_dir: Optional[Path] = None) -> Registry:
+    """The registry a measurement renders from: as shipped, on the files installed.
+
+    `load_registry` alone keeps each model's configured file name, and Draw
+    Things answers 422 "Unrecognized model name" for a quantisation that is
+    not the one installed -- every sweep cell of FLUX.3 klein, configured as
+    the q8p build and installed as i8x, failed that way. This matches files the
+    way the app does at startup (resolve_installed, after the renamed imports
+    startup recorded, migrate.file_aliases). Optional LoRAs are off unless
+    asked for: a measurement is of the model as shipped.
+    """
+    from . import DATA_DIR
+    from .migrate import file_aliases
+
+    reg = load_registry(path, lora_options=lora_options)
+    reg.file_aliases = file_aliases(data_dir or DATA_DIR)
+    reg.resolve_installed()
+    return reg
+
+
 def lora_tag(spec: ModelSpec) -> str:
     """The ticked options' keys, for a measurement's filenames: "" when none.
 

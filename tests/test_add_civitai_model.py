@@ -39,6 +39,15 @@ class TestChooseProfile:
         assert acm.choose_profile(PROFILES, SDXL, None, civitai("Illustrious")) == "illustrious"
         assert acm.choose_profile(PROFILES, SDXL, None, civitai("SDXL 1.0")) == "sdxl"
 
+    def test_where_civitai_calls_two_classes_one_base_the_name_decides(self):
+        """Civitai files Animagine under "SDXL 1.0", the base of the photographic
+        class too; a Danbooru model there must not get prose and lens talk."""
+        anim = {"file": "animagine_xl_v3.1_q6p_q8p.ckpt", "name": "Animagine XL v3.1 (8-bit)",
+                "version": "sdxl_base_v0.9"}
+        assert acm.choose_profile(PROFILES, anim, None, civitai("SDXL 1.0")) == "animagine"
+        assert acm.choose_profile(PROFILES, SDXL, None, civitai("SDXL 1.0", "Animagine XL")) \
+            == "animagine"
+
     def test_a_base_with_no_profile_is_refused_not_guessed(self):
         with pytest.raises(SystemExit, match="Pony"):
             acm.choose_profile(PROFILES, SDXL, None, civitai("Pony"))
@@ -86,6 +95,7 @@ def config(tmp_path):
     ("illustrious", SDXL, civitai("Illustrious")),
     ("sdxl", SDXL, civitai("SDXL 1.0", "Some Photo Model")),
     ("anima", ANIMA, None),
+    ("animagine", SDXL, civitai("SDXL 1.0", "Animagine XL")),
 ])
 def test_every_profile_writes_an_entry_the_app_loads(config, profile, imported, info):
     key, entry = acm.build_entry(imported, profile, PROFILES, info)

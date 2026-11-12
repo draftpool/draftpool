@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
@@ -554,6 +554,14 @@ class CivitaiRefRequest(BaseModel):
     """Which Civitai version a model is: its id, AIR, page address or SHA256."""
 
     ref: str
+
+
+class TuneAnswerRequest(BaseModel):
+    """One answer in the Tune wizard (app/tune.py): a picture's index in the
+    question, or "cant_tell" / "same" / "one" / "more" by the question's kind."""
+
+    question: str
+    answer: Union[int, str]
 
 
 class HideUninstalledRequest(BaseModel):

@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Optional
 
+import yaml
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
@@ -33,12 +34,12 @@ from .detailer import (
     refine_faces,
     repaint_region,
 )
-from . import civitai, dims, dt_audio, esrgan, migrate, video
+from . import civitai, dims, dt_audio, esrgan, migrate, tune, video
 from .dt_client import DrawThingsClient, DrawThingsStalled
 from . import vocab
 from .llm import META_TAGS, LlmError, OllamaClient, image_for_vision
-from .private_models import version_from_ref
-from .registry import load_registry
+from .private_models import added_keys, load_profiles, load_tuned, version_from_ref
+from .registry import CONFIG_PATH, load_registry, private_path
 from .schemas import (
     AnimateRequest,
     CombineRequest,
@@ -61,6 +62,7 @@ from .schemas import (
     RefineRequest,
     HideUninstalledRequest,
     CivitaiRefRequest,
+    TuneAnswerRequest,
     LoraChoiceRequest,
     LoraSpec,
     ModelEnabledRequest,
@@ -1183,6 +1185,7 @@ async def models() -> list[dict]:
         except Exception:  # noqa: BLE001 - the list must still come back
             log.exception("setting up a new import failed; config left as it was")
     registry.resolve_installed()
+    tunable = _tunable_keys()
     return [
         {
             "key": m.key,
@@ -1240,6 +1243,10 @@ async def models() -> list[dict]:
             # user added without one can be given it in the settings dialog
             "civitai_version_id": m.civitai_version_id,
             "can_identify": m.key in registry.private_keys and not m.civitai_version_id,
+            # a model set up from its class, not measured: the Tune wizard's
+            # (app/tune.py); `tuning` says one was started and not finished
+            "can_tune": m.key in tunable and bool(m.available),
+            "tuning": tune.Tuner(_tune_dir(), m.key).path.is_file(),
             # the reason travels with the flag: the UI shows a disabled button
             # explaining which model is missing, rather than hiding the action
             "can_upscale": registry.upscale_block(m.key) is None,
@@ -1365,6 +1372,230 @@ async def set_civitai_version(model_key: str, req: CivitaiRefRequest) -> dict:
     _reload_registry()
     log.info("model %s is Civitai version %s: %s", model_key, version_id, message)
     return {"message": message, "civitai_version_id": version_id}
+
+
+# -- Tune: a guessed model's settings, picked by eye (app/tune.py) --------------
+
+def _tune_dir() -> Path:
+    """Beside the sessions, in the data directory the user moves wholesale:
+    these are their renders, not research/'s."""
+    return store.data_dir / "tune"
+
+
+# one tuning renders at a time; the Draw Things client's lock already keeps it
+# to one request at a time beside the user's own jobs
+_tune_task: Optional[asyncio.Task] = None
+
+
+def _tunable_keys() -> set[str]:
+    """Models the app or a script set up for this install whose settings are
+    no measurement: a profile's, or picks made here before. A version measured
+    here is left out -- its settings were rendered and judged on that file."""
+    private = private_path(CONFIG_PATH)
+    measured = set(load_tuned())
+    return {k for k in added_keys(private) & registry.private_keys
+            if k in registry.models and registry.models[k].civitai_version_id not in measured}
+
+
+def _tune_spec(model_key: str):
+    """The model as it ships: no speed-LoRA tick, no typed step count. A tick
+    brings its own steps and cfg, and the picks would be recorded as the
+    model's own (the reason measurement scripts load lora_options=False)."""
+    reg = _build_registry()
+    reg.apply_step_overrides({})
+    spec = reg.models[model_key]
+    reg.apply_lora_choices({model_key: {o.key: False for o in spec.lora_options}})
+    return reg.models[model_key]
+
+
+def _tune_classes(model_key: str, spec) -> tuple[Optional[str], Optional[dict]]:
+    """The class round's candidates: (the model's class, {class: option}).
+
+    Only for a model still exactly on a class profile, and only among the
+    classes of its architecture -- for SDXL, Illustrious, Animagine and plain
+    SDXL, which Draw Things cannot tell apart and a name may not. Each is
+    rendered as the app would render that class: its own settings on this
+    model's file, its own opener and negative.
+    """
+    from .schemas import ModelSpec
+
+    private = private_path(CONFIG_PATH)
+    entries = (yaml.safe_load(private.read_text()) or {}).get("models") or {} \
+        if private.is_file() else {}
+    entry = entries.get(model_key) or {}
+    profiles = load_profiles()
+    current = migrate._on_profile({k: v for k, v in entry.items() if k not in migrate._WHICH_FILE},
+                                  profiles)
+    if current is None:
+        return None, None
+    arch = profiles[current]["draw_things_version"]
+    options = {}
+    for name, prof in profiles.items():
+        if prof["draw_things_version"] != arch:
+            continue
+        settings = json.loads(json.dumps(prof["settings"]))
+        cspec = ModelSpec(key=model_key, label=spec.label, dt_filename=spec.dt_filename,
+                          **{k: v for k, v in settings.items() if k != "lora_options"})
+        options[name] = tune.class_option(cspec, prompt=prompt_for(cspec, tune.SCENE),
+                                          negative=negative_for(cspec, ""), entry=settings)
+    return current, options if len(options) > 1 else None
+
+
+def _tuner_or_404(model_key: str) -> tune.Tuner:
+    t = tune.Tuner(_tune_dir(), model_key)
+    if not t.path.is_file():
+        raise HTTPException(404, "this model is not being tuned")
+    return t
+
+
+def _tune_reply(t: tune.Tuner, state: Optional[dict] = None) -> dict:
+    state = state or t.load()
+    if state is None:
+        raise HTTPException(404, "this model is not being tuned")
+    phase = t.phase(state)
+    return {
+        **{k: state[k] for k in ("key", "label", "round", "attempt", "notes", "skipped",
+                                 "before", "settings")},
+        "rounds": state.get("rounds") or list(tune.ROUNDS),
+        "phase": phase,
+        "running": _tune_task is not None and not _tune_task.done(),
+        "questions": [
+            {**q, "cells": [
+                {k: state["cells"][c].get(k) for k in ("id", "status", "error", "width", "height")}
+                for c in q["cells"]]}
+            for q in state["questions"]
+        ],
+        # the labels are the picks' meaning: kept off the questions so the
+        # page cannot show them before the answer, and handed over at review
+        "labels": {c["id"]: c["label"] for c in state["cells"].values()} if phase == "review" else {},
+        "pending": len(t.pending(state)),
+        # only while it renders: the page polls, and this reads every timing row
+        "estimate_s": (tune.estimate(t.pending(state), store.render_timings(), t.key)
+                       if phase == "rendering" else None),
+        "changes": {k: list(v) for k, v in tune.changes(state).items()},
+    }
+
+
+def _start_tune_renders(t: tune.Tuner) -> None:
+    """Render what the current round lacks, unless something already is."""
+    global _tune_task
+    if _tune_task is not None and not _tune_task.done():
+        return
+    spec = _tune_spec(t.key)
+
+    async def render(cell: dict) -> bytes:
+        return await dt.txt2img(
+            prompt=cell["prompt"], negative_prompt=cell["negative"],
+            model_filename=spec.dt_filename, width=cell["width"], height=cell["height"],
+            steps=cell["steps"], cfg=cell["cfg"], seed=cell["seed"], sampler=cell["sampler"],
+            clip_skip=cell.get("clip_skip") or spec.clip_skip, loras=stage_loras(spec.final),
+            tiled_diffusion=spec.tiled_diffusion,
+        )
+
+    async def run() -> None:
+        try:
+            await t.render_pending(render)
+        except Exception:  # noqa: BLE001 - the state on disk says where it stopped
+            log.exception("tuning %s stopped", t.key)
+
+    _tune_task = asyncio.create_task(run())
+
+
+@app.get("/api/tune/{model_key}")
+async def tune_state(model_key: str) -> dict:
+    """Where a tuning stands. Picks up rendering a restart interrupted."""
+    t = _tuner_or_404(model_key)
+    state = t.load()
+    if state and t.phase(state) == "rendering" and model_key in registry.models:
+        _start_tune_renders(t)
+    return _tune_reply(t)
+
+
+@app.post("/api/tune/{model_key}")
+async def tune_start(model_key: str) -> dict:
+    """Start tuning one of the user's guessed models: its first round renders."""
+    if model_key not in _tunable_keys():
+        raise HTTPException(400, "only a model set up from its class can be tuned; "
+                                 "a measured one already has its settings")
+    if not registry.models[model_key].available:
+        raise HTTPException(400, "the model is not installed in Draw Things")
+    if _tune_task is not None and not _tune_task.done():
+        raise HTTPException(409, "another model is being tuned; let its renders finish first")
+    t = tune.Tuner(_tune_dir(), model_key)
+    state = t.load()
+    if state is None:
+        spec = _tune_spec(model_key)
+        current, classes = await asyncio.to_thread(_tune_classes, model_key, spec)
+        state = t.start(spec, prompt=prompt_for(spec, tune.SCENE),
+                        negative=negative_for(spec, ""), classes=classes,
+                        current_class=current)
+    _start_tune_renders(t)
+    return _tune_reply(t, state)
+
+
+@app.post("/api/tune/{model_key}/answer")
+async def tune_answer(model_key: str, req: TuneAnswerRequest) -> dict:
+    t = _tuner_or_404(model_key)
+    try:
+        state = t.answer(req.question, req.answer)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    _start_tune_renders(t)
+    return _tune_reply(t, state)
+
+
+@app.post("/api/tune/{model_key}/skip")
+async def tune_skip(model_key: str) -> dict:
+    t = _tuner_or_404(model_key)
+    try:
+        state = t.skip_round()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return _tune_reply(t, state)
+
+
+@app.post("/api/tune/{model_key}/retry")
+async def tune_retry(model_key: str) -> dict:
+    """Render the failed cells of this round again."""
+    t = _tuner_or_404(model_key)
+    state = t.retry_failed()
+    _start_tune_renders(t)
+    return _tune_reply(t, state)
+
+
+@app.post("/api/tune/{model_key}/apply")
+async def tune_apply(model_key: str) -> dict:
+    """Write the picks into the model's entry and put the frames away."""
+    t = _tuner_or_404(model_key)
+    state = t.load()
+    if t.phase(state) != "review":
+        raise HTTPException(400, "the rounds are not finished")
+    try:
+        message = await asyncio.to_thread(tune.write_tuning, model_key, state)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    t.discard()
+    _reload_registry()
+    log.info("tuned %s: %s", model_key, message)
+    return {"message": message}
+
+
+@app.delete("/api/tune/{model_key}")
+async def tune_discard(model_key: str) -> dict:
+    """Stop and forget a tuning; the model keeps the settings it had. A render
+    in flight finishes in Draw Things and is dropped (Tuner.render_pending)."""
+    t = _tuner_or_404(model_key)
+    t.discard()
+    return {"discarded": model_key}
+
+
+@app.get("/api/tune/{model_key}/cells/{cell_id}.png")
+async def tune_cell(model_key: str, cell_id: str) -> FileResponse:
+    t = _tuner_or_404(model_key)
+    path = t.image(cell_id)
+    if not path.is_file() or path.parent != t.dir:
+        raise HTTPException(404, "no such render")
+    return FileResponse(path, media_type="image/png")
 
 
 @app.delete("/api/settings/steps")

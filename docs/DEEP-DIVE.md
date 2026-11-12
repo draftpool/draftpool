@@ -97,6 +97,49 @@ Draw Things project is started meanwhile. The clip itself is unaffected. If
 macOS asks whether the app (or the Terminal running it) may access data from
 other apps, allow it: Draw Things' history is that data.
 
+## Tune: what each round renders and how it decides
+
+Every round renders one scene, written the way the app would prompt the model,
+quality tags and negative included: a young woman in steel armour, loose dark hair
+and a brass lamp. Skin, loose hair and metal are where a wrong sampler or too
+high a cfg shows first, and one figure makes the count unambiguous. The model
+runs as it ships: speed-LoRA ticks off, and step counts you typed in the
+table ignored. The seeds are 1111 and 2222.
+
+- **Kind of model.** Only for a model still on its kind's settings, where its
+  architecture has more than one kind. For SDXL that means Illustrious,
+  Animagine and plain SDXL. Each kind renders the scene the way the app would
+  prompt that kind: its own quality tags, negative prompt, clip skip, sampler
+  and cfg, at its draft settings, on two seeds. Picking the same kind on both
+  seeds moves the model to it, and the later rounds are judged on that kind's
+  prompt. Anything less keeps the kind it has.
+- **Sampler and cfg.** The model's sampler and the other common one (Euler a
+  and DPM++ 2M Karras), each at the model's cfg and about a third lower: 8
+  renders at the draft size and the final's step count. The crops are shown
+  at native pixels, because shrinking a picture hides exactly what you are
+  judging. Speckle at the higher cfg only is cfg burn. Speckle at both cfgs on
+  one sampler means that sampler is wrong for the model. The round is skipped
+  for a model at cfg 1, whose few-step recipe should be left as it is.
+- **Final size.** Two square frames at the final size, plus one at the widest
+  shape (16:9) at the model's shape budget. "More than one" on a square frame
+  steps the final size down 256px and renders the round again. On the wide
+  frame it steps the shape budget down 64px. After three tries, or at the
+  draft size, it stops and keeps the last size, noting that it is worth a look
+  by hand.
+- **Final steps.** The final's step count against two thirds of it, on both
+  seeds. The fewer steps are kept unless you pick the other on a seed.
+
+A render that comes back blank, as one flat colour or as a grey refusal card
+can't be picked; it shows the reason instead. If nothing in a round came back,
+**Render them again** retries those cells.
+
+**Saving** rewrites the model's entry in `config/models.private.yaml`. A
+comment above the entry lists each round's outcome and says the settings were
+picked by eye. A step count you typed in the table still wins over the saved
+final steps. **Discard** throws the renders away and leaves the model as it
+was. Renders are kept under `tune/` in the data directory until you save or
+discard.
+
 ## The tag vocabulary in detail
 
 The [guide](GUIDE.md#prompting-the-anime-models) explains what the tag checks

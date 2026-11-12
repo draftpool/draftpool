@@ -200,6 +200,66 @@ models:
     upscale: { size: 2048, steps: 12, strength: 0.3 }
     upscale_seconds: 340
 
+  flux3-klein:
+    label: "FLUX.3 klein 5.6B"
+    # Draw Things records a new architecture for it (flux3_5b, Qwen3-VL 4B
+    # text encoder, the FLUX.2 VAE). FLUX.2 klein's budget, and its widest
+    # shape (1344x768) probed clean at seed 1111, 4 steps: one figure, the
+    # scene intact (research/aspect/flux3-klein).
+    aspect_size: 1024
+    dt_filename: "flux_3_klein_q8p.ckpt"
+    # Flux.3 Klein, civitai.com/models/3003556 (CivitaiOfficial), version
+    # "Klein" -- the distilled build Draw Things ships, not the Klein-Base
+    # beside it.
+    civitai_version_id: 3407486
+    # Measured: the Faithful over a 768 draft is as sharp at 1:1 as a fresh
+    # final (research/draft-size/flux3-klein), and a 2048 img2img pass comes
+    # back untiled at 0.989 correlation with its source in 169s, with detail
+    # repainted rather than enlarged (research/final-steps/flux3-klein/
+    # *2048_untiled*, RUNS.md there).
+    supports_img2img: true
+    # Draw Things' note: "Write full scene captions covering framing, subject,
+    # background and lighting; short prompts give generic output."
+    prompt_guidance: |
+      Write a full scene caption of 40-90 words in prose: framing and camera
+      (shot size, angle, lens, depth of field), then the subject and what it
+      is doing, then the background, then the lighting, then the style. Attach
+      colours and materials to specific objects. State the desired qualities
+      positively ("sharp focus throughout", not "no blur"). Text that should
+      appear in the image goes in double quotes. No tag lists, no weighting
+      syntax.
+    # DDIM Trailing, as FLUX.2 klein: Draw Things' catalogue has no saved
+    # configuration for this model, only "16 steps, Text Guidance 1 and Shift
+    # 16" in its note, and every frame below rendered clean on it. Explicit
+    # rather than null for the reason on krea2-turbo. Shift cannot be set
+    # over the HTTP API for stills (app/dt_client.py), so Draw Things' own
+    # value applies.
+    sampler: "DDIM Trailing"
+    cfg: 1.0
+    uses_negative_prompt: false
+    # Measured with add_model.py's ladder at 512 and the draft's 8 steps (the
+    # text encoder decides what reaches the picture, not the pixel count):
+    # the subject holds to 410 characters and falls at 622, and the marker
+    # sentence at the very end still renders at 821 (research/add_model/
+    # flux3-klein, *_d512_*). A little short of klein 9B's 450/900, with a
+    # different text encoder (Qwen3-VL 4B against Qwen3 8B).
+    prompt_budget: { full: 400, fading: 800 }
+    #
+    # 768 at 8 steps, accepted on its Faithful (DRAFT-STEPS.md's rule): 28-35s
+    # a draft, and the Faithful over it holds freckles, hair strands and the
+    # chalkboard lettering at 1:1.
+    draft: { size: 768, steps: 8 }
+    # 16, Draw Things' recommendation, and where it stops improving: swept at
+    # 8 / 16 / 24 on both scenes (research/final-steps/flux3-klein). 8 is
+    # already sharp at 1:1 (51s); 16 resolves the lantern lettering and the
+    # market's clutter more coherently (104s); 24 is indistinguishable from
+    # 16 at 1:1 (150s), and on the market seed it drew a second cat. The
+    # portrait barely moves from 8 to 24 -- 8 in the gear dialog is a fair
+    # trade for speed.
+    final: { size: 1024, steps: 16, strength: 0.5 }
+    upscale: { size: 2048, steps: 12, strength: 0.3 }
+    upscale_seconds: 170
+
   flux1-schnell:
     label: "FLUX.1 schnell"
     # Kept, but not recommended: the same FLUX text-to-image stack as klein

@@ -66,7 +66,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import ROOT
 from app.dt_client import DrawThingsClient
-from app.registry import load_registry
+from app.registry import load_for_measuring
 
 TOPIC = "final-steps"
 OUT = ROOT / "research" / TOPIC   # archived frames; a run stages in runs/ (research_frames.py)
@@ -76,6 +76,7 @@ OUT = ROOT / "research" / TOPIC   # archived frames; a run stages in runs/ (rese
 # judged against. Nothing here is a prediction -- they are the cells to look at.
 LADDERS = {
     "flux2-klein": [4, 16, 32],          # 4 is Draw Things' own recommendation
+    "flux3-klein": [8, 16, 24],          # 16 is Draw Things' own recommendation
     "flux1-schnell": [4, 6, 12],         # 4 is Draw Things' own recommendation
     "z-image-turbo": [8, 16, 24],        # ships at DT's 8; the question is above it
     # 12 added: 8 shows visible noise at 1:1 and 16 does not, so the floor is
@@ -194,7 +195,7 @@ async def run(keys: list[str], seeds: list[int], scenes: list[str],
     run_dir = run_dir or start_run(TOPIC)
     # the models as they ship: an accelerator is measured through --lora and
     # a tag, never picked up silently from a default-on tick
-    reg = load_registry(lora_options=False)
+    reg = load_for_measuring(lora_options=False)
     dt = DrawThingsClient("http://127.0.0.1:7860")
     if not await dt.is_up():
         raise SystemExit("Draw Things is not answering on 127.0.0.1:7860")
