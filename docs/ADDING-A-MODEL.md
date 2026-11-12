@@ -21,7 +21,7 @@ already defined in the app: install them in Draw Things
 | Civitai's "Base Model" | what it is | settings it gets from |
 |---|---|---|
 | **Illustrious** | SDXL-architecture anime models trained on Danbooru tags | six Illustrious finetunes measured here |
-| **Anima** | Cosmos 2.5 2B anime models | the Anima models that ship with the app |
+| **Anima** | Cosmos 2.5 2B anime models | three Anima finetunes measured here |
 | **SDXL 1.0** | SDXL photographic and general models | Juggernaut XL Ragnarok |
 
 What it doesn't take:
@@ -43,8 +43,9 @@ What it doesn't take:
 1. **Download the checkpoint** from its Civitai page.
 2. **Import it into Draw Things**: **Models list → Manage → Import Model**.
    Any name will do.
-3. **Restart the server.** The model appears in the composer's model row, and
-   the server's log names what it added.
+3. **Refresh the page.** The model appears in the composer's model row, and
+   the server's log names what it added. A server that wasn't running picks
+   it up when it starts.
 
 What the entry gets:
 
@@ -61,8 +62,8 @@ What the entry gets:
 A model the app already has, imported again under another name, is the same
 model: it is not added a second time.
 
-The server looks at each import once, on the first start after it, and from
-then on uses the entry in `config/models.private.yaml`. To set one up
+The server looks at each import once, when it first sees it, and from then on
+uses the entry in `config/models.private.yaml`. To set one up
 yourself instead -- when the guess is wrong (an Illustrious model whose name
 doesn't say so), or to credit the checkpoint when you publish -- delete the
 entry the server added, then name the version the way its Civitai page shows

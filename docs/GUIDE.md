@@ -132,16 +132,15 @@ its Lightning LoRA is switched in the **⚙** dialog only.
 | model | LoRA | with it | without it |
 |---|---|---|---|
 | Qwen Edit (Edit, Combine) | Lightning | ~1.5 min | ~5 min |
-| LustrousMix Anima | Anima Turbo | ~1 min final | ~6 min final |
-| CyberRealistic Anima | Anima Turbo | ~1 min final | ~6 min final |
+| Anima models | Anima Turbo | ~1 min final | ~6 min final |
 | Qwen Image 2512 | Turbo | under 1 min final | ~3.5 min final |
 
 What they cost besides speed:
 
 - **No negative prompt.** These LoRAs run at CFG 1, so the negative prompt box
   disappears for those models.
-- **Anima Turbo changes the look**: darker and warmer, and on LustrousMix less
-  bright. Turn it off when you want the model's own colours.
+- **Anima Turbo changes the look**: darker and warmer, and on some checkpoints
+  less bright. Turn it off when you want the model's own colours.
 - **Qwen Image Turbo makes skin look harsher.** For a portrait, turn it off.
 - **Lightning is weak at replacing things** (see
   [Edit](#without-a-rectangle-edit-by-instruction)).
@@ -350,9 +349,8 @@ background details take over.
 | Qwen Image 2512 | 400 | 800 |
 | Krea 2 Turbo | 350 | 700 |
 | Z-Image Turbo | 260 | 800 |
-| CyberRealistic Anima | 240 | 700 |
-| LustrousMix Anima, FLUX.1 schnell, and any model you add from the Illustrious or Anima profile | 240 | 600 |
-| BAS+ Anima | 240 | 450 |
+| FLUX.1 schnell | 240 | 600 |
+| Illustrious and Anima models | 240 | 600, between 450 and 700 on a checkpoint measured for the app |
 
 Between the two numbers, the end of the prompt has less and less effect.
 
@@ -364,8 +362,7 @@ limit.
 
 ## Prompting the anime models
 
-The anime models (LustrousMix, BAS+, CyberRealistic Anima, and any Illustrious
-or Anima model you add) were trained on images
+The anime models, Illustrious and Anima, were trained on images
 labelled with Danbooru tags, so they understand Danbooru's words best. Prompts
 are still written as sentences, because sentences can say who has what and
 where things are. A list of tags can't.
@@ -395,10 +392,10 @@ The one-line box under the prompt is for things you want kept *out* of the
 picture. It only appears when a selected model can use one: models running at
 CFG 1 can't.
 
-These models use negative prompts: LustrousMix, CyberRealistic Anima,
-Juggernaut XL, Qwen Image, and any model you add from a profile. These don't: FLUX.2 klein,
-FLUX.1 schnell, Z-Image Turbo, Krea 2 Turbo and BAS+ Anima, nor any model
-while its [speed LoRA](#speed-loras) is on.
+These models use negative prompts: Juggernaut XL, Qwen Image, and the
+Illustrious, Anima and SDXL models, except the few measured checkpoints that
+run at CFG 1. These don't: FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo and
+Krea 2 Turbo, nor any model while its [speed LoRA](#speed-loras) is on.
 
 If you leave it empty, a sensible default is used. **Anything you type replaces
 the default** rather than adding to it, so include things like "bad hands,

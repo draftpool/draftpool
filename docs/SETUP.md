@@ -1,8 +1,8 @@
 # Setup in full
 
 The short version is in the [README](../README.md#setup). This page covers the
-rest: what the setup script does, installing by hand, the Civitai models, where
-your data lives, updating, moving to another Mac, and troubleshooting.
+rest: what the setup script does, installing by hand, the models it supports,
+where your data lives, updating, moving to another Mac, and troubleshooting.
 
 ## What `scripts/setup.sh` does
 
@@ -16,16 +16,19 @@ Model downloads are optional:
 | option | downloads |
 |---|---|
 | `--llms` | the two Ollama models, gemma3:12b and qwen3-vl:8b (~14GB) |
-| `--anime-checkpoints` | three anime models from Civitai (LustrousMix Anima, BAS+ and CyberRealistic Anima, ~16GB), plus the Anima Turbo and Qwen Image Turbo LoRAs |
+| `--loras` | the two [speed LoRAs](#loras) that come from Civitai, Anima Turbo and Qwen Image Turbo (~1.3GB) |
 
 ```bash
-./scripts/setup.sh                            # tools + upscaler
-./scripts/setup.sh --llms                     # + the two Ollama models
-./scripts/setup.sh --llms --anime-checkpoints # + the Civitai models
+./scripts/setup.sh                       # tools + upscaler
+./scripts/setup.sh --llms                # + the two Ollama models
+./scripts/setup.sh --llms --loras        # + the Civitai speed LoRAs
 ```
 
-`--anime-checkpoints` needs a Civitai API key (see below). Neither option is
-required: the models in Draw Things' own catalogue are enough to use the app.
+`--loras` needs a Civitai API key: put it in `CIVITAI_TOKEN`, either in `.env`
+or exported in your shell. Create one at civitai.com → Account settings → API
+Keys. The same key is used by **Publish…**, so it's worth setting anyway.
+Neither option is required: the models in Draw Things' own catalogue are
+enough to use the app.
 
 The video model is never downloaded by the script. Draw Things downloads and
 converts it itself; the script just tells you what to look for.
@@ -34,41 +37,29 @@ Before downloading anything, the script checks you have enough free disk space
 and stops if you don't. Importing a model into Draw Things temporarily needs
 space for two copies, so leave some room to spare.
 
-## Getting the Civitai models
+## The models
 
-Some of the models are community models hosted on Civitai rather than in Draw
-Things' catalogue. There are two ways to get them:
+**From Draw Things' catalogue**: FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo,
+Krea 2 Turbo, Juggernaut XL Ragnarok, Qwen Image and Qwen Image Edit. The setup
+script lists them by the names Draw Things' search box finds them under, and
+they need no Civitai account.
 
-- **With the script** (`--anime-checkpoints`, for the three below). Put a
-  Civitai API key in `CIVITAI_TOKEN`, either in `.env` or exported in your
-  shell. Create one at civitai.com → Account settings → API Keys. The same key
-  is used by **Publish…**, so it's worth setting anyway.
-- **By hand.** Open the model's page in your browser while logged in to
-  Civitai, download the `.safetensors` file, then in Draw Things go to **Models
-  list → Manage → Import Model**. Do this if the scripted download fails.
+**From Civitai**, the app supports classes of model rather than a list of
+them. Any full checkpoint of these base models works:
 
-| Model | Civitai page |
-|---|---|
-| LustrousMix Anima v1.0 | https://civitai.com/models/941345?modelVersionId=2982979 |
-| BAS+ Better Anime Style Plus (Anima base v1.0) | https://civitai.com/models/2675648?modelVersionId=3004325 |
-| CyberRealistic Anima v6.0 | https://civitai.com/models/2668799?modelVersionId=3136380 |
+| class | Civitai's "Base Model" | what it is |
+|---|---|---|
+| **Illustrious** | Illustrious | SDXL-architecture anime models trained on Danbooru tags |
+| **Anima** | Anima | Cosmos 2.5 2B anime models, also Danbooru-tagged |
+| **SDXL** | SDXL 1.0 | photographic and general SDXL models |
 
-The app's settings were tested with these exact versions. A newer version will
-probably work too. If you install a different one, update `civitai_version_id`
-for that model in `config/models.yaml`, or a published post will credit the
-wrong version.
-
-Everything else (FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo, Krea 2 Turbo,
-Juggernaut XL Ragnarok, Qwen Image and Qwen Image Edit) comes from Draw Things'
-own catalogue and needs no Civitai account.
-
-## Adding any other model
-
-Import any Illustrious, Anima or SDXL checkpoint into Draw Things and restart
-the server: it appears in the composer, set up for its kind of model. When it
-is a version whose settings were measured exactly, it gets those instead and
-is credited by its Civitai version when you publish; the app recognises the
-weights, whatever the file is called. Details and the options are in
+Download the checkpoint from its Civitai page while logged in, import the
+`.safetensors` in Draw Things (**Models list → Manage → Import Model**) and
+refresh the page: it appears in the composer, set up for its class. Some
+versions were measured for the app one by one; the app recognises those by
+their weights, whatever the file is called, and gives them their own settings
+and their Civitai version for the credit when you publish. Details, and what
+to do when the class is guessed wrong, are in
 [Adding a model](ADDING-A-MODEL.md#plugging-in-a-model-from-civitai).
 Your models live in `config/models.private.yaml`, which updates never touch.
 
@@ -148,8 +139,8 @@ What each can and can't do is in the [guide](GUIDE.md#animate).
       Use it for a single image you care about, not for trying things out.
     - Download an upscaler under **Official Upscalers**: **4x UltraSharp**
       (~34MB). **Upscale** is disabled until one is installed.
-    - Import the Civitai models you want (see
-      [above](#getting-the-civitai-models)).
+    - Import any Illustrious, Anima or SDXL checkpoints you want from
+      Civitai (see [the models](#the-models)).
     - Add the [LoRAs](#loras) for the models you installed.
 
 5.  **Check the connection to Draw Things**:
@@ -172,9 +163,9 @@ optional, and you only need the ones for models you have.
 |---|---|---|---|---|
 | **Qwen Image Edit 2511 Lightning 4-Step v1.0** | 0.8GB | Qwen Edit | Edits in about 1.5 minutes instead of 5 | Draw Things' LoRA list · [source](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning) |
 | **Wuli-art Qwen-Image-2512 Turbo (4 steps)** | 1.1GB | Qwen Image 2512 | Finished images in under a minute instead of 3.5 | [Civitai](https://civitai.com/models/2267786?modelVersionId=2552570), then **LoRA list → Manage → Import LoRA**. Not the "Qwen Image 2512 Lightning" in Draw Things' list, which doesn't work here |
-| **Anima Turbo LoRA v0.2** | 0.14GB | LustrousMix Anima, CyberRealistic Anima, and any Anima model you add | Finished images in about a minute instead of six; changes the look | [Civitai](https://civitai.com/models/2560840?modelVersionId=2979642), then **LoRA list → Manage → Import LoRA** |
+| **Anima Turbo LoRA v0.2** | 0.14GB | Anima models | Finished images in about a minute instead of six; changes the look | [Civitai](https://civitai.com/models/2560840?modelVersionId=2979642), then **LoRA list → Manage → Import LoRA** |
 
-`setup.sh --anime-checkpoints` downloads the two Civitai LoRAs for you. Once
+`setup.sh --loras` downloads the two Civitai LoRAs for you. Once
 installed they're switched on; you can turn each one off in the ⚙ dialog.
 [The guide](GUIDE.md#speed-loras) explains the trade-offs.
 
@@ -226,7 +217,7 @@ no separate migration step.
 |---|---|---|
 | `app/`, `static/`, `scripts/`, `tests/` | yes | nothing |
 | `config/models.yaml` | yes, but you may have edited it | keep a copy of your changes, see below |
-| `config/models.private.yaml` | no, it's yours | nothing: [your own models](#adding-any-other-model) stay |
+| `config/models.private.yaml` | no, it's yours | nothing: [your own models](#the-models) stay |
 | `.venv/` | no | `setup.sh` rebuilds it |
 | `tools/realesrgan` | no | `setup.sh` downloads it again if it's missing |
 | `data/` | **no** | keep it, see [Where your data lives](#where-your-data-lives) |
@@ -250,7 +241,7 @@ line. Then delete the old folder.
 
 **`config/models.yaml` is the one file where an update can lose your changes.**
 Put a model of your own in `config/models.private.yaml` instead, ideally with
-[the add script](#adding-any-other-model), and an update can't touch it. If
+[the add script](ADDING-A-MODEL.md#plugging-in-a-model-from-civitai), and an update can't touch it. If
 you've edited `models.yaml` itself, keep a copy before updating and compare
 afterwards:
 
@@ -307,10 +298,10 @@ chip.
 - **All model chips are greyed out**: the app can't find Draw Things' model
   folder. Check `draw_things.models_dirs` in `config/models.yaml`, then refresh
   the page.
-- **`--anime-checkpoints` says `CIVITAI_TOKEN` is not set** although it's in
-  `.env`: check the line isn't commented out and is a plain `KEY=value`.
+- **`--loras` says `CIVITAI_TOKEN` is not set** although it's in `.env`:
+  check the line isn't commented out and is a plain `KEY=value`.
 - **A Civitai download fails or times out**: download from the
-  [model pages](#getting-the-civitai-models) in your browser instead.
+  [LoRA pages](#loras) in your browser instead.
 - **Your sessions disappeared after an update or move**: the app opened a
   different data folder. Check the `data directory:` line printed at startup
   and set `DRAFTPOOL_DATA_DIR` correctly. See

@@ -363,7 +363,7 @@ models:
     # default does not carry, which is why the floor is per model.
     negative_prefix: "worst quality, low quality, jpeg artifacts, signature, sepia, fewer digits, extra digits, bad hands, bad anatomy, watermark, censored, score_1, score_2, score_3"
     dt_filename: "hosekilustrousmixanima_animav10_f16.ckpt"
-    # LustrousMix Anima v1.0, civitai.com/models/941345.
+    # LustrousMix Anima v1.0.
     # Only used when publishing an image made with it: it is what
     # attributes the checkpoint on the Civitai post, since a converted
     # .ckpt cannot be matched by hash. Update it with the weights.
@@ -626,7 +626,7 @@ models:
     # session and say nothing (docs/decisions/SHAPES.md).
     aspect_size: 1472
     dt_filename: "basbetteranimestyleplusanima_basev10_f16.ckpt"
-    # BAS+ Better Anime Style Plus (Anima base v1.0), civitai.com/models/2675648.
+    # BAS+ Better Anime Style Plus (Anima base v1.0).
     # Only used when publishing an image made with it: it is what
     # attributes the checkpoint on the Civitai post, since a converted
     # .ckpt cannot be matched by hash. Update it with the weights.
@@ -727,7 +727,7 @@ models:
     # (docs/decisions/SHAPES.md).
     aspect_size: 1408
     dt_filename: "cyberrealisticanima_v60aestheticv11_f16.ckpt"
-    # CyberRealistic Anima v6.0, civitai.com/models/2668799.
+    # CyberRealistic Anima v6.0.
     # Only used when publishing an image made with it: it is what
     # attributes the checkpoint on the Civitai post, since a converted
     # .ckpt cannot be matched by hash. Update it with the weights.

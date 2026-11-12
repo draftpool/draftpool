@@ -3,15 +3,19 @@
 #
 # Installs the tooling (Ollama, uv, Real-ESRGAN) unconditionally; model
 # downloads are opt-in and additive:
-#   ./scripts/setup.sh [--llms] [--anime-checkpoints] [--video-lora]
+#   ./scripts/setup.sh [--llms] [--loras] [--video-lora]
 # See --help. Draw Things itself, and every model in its own catalogue, is a
 # manual step: the script ends by printing exactly what to install and where
 # each piece comes from.
 #
-# The Civitai checkpoints behind --anime-checkpoints need a login, either way round:
+# The Civitai LoRAs behind --loras need a login, either way round:
 #   export CIVITAI_TOKEN=...   # civitai.com -> Account settings -> API Keys
-# or skip the token and open the model page links this script prints (at the
-# end, and inline on any failure) -- a browser session is logged in already.
+# or skip the token and open the page links this script prints (at the end,
+# and inline on any failure) -- a browser session is logged in already.
+#
+# No checkpoint is downloaded from Civitai, and none is named here: the app
+# takes any Illustrious, Anima or SDXL checkpoint the user imports into Draw
+# Things and sets it up for its class (docs/ADDING-A-MODEL.md).
 set -euo pipefail
 
 # Model names are what you type into Draw Things' search box, so they are
@@ -24,7 +28,7 @@ else
 fi
 
 DOWNLOAD_LLMS=0
-DOWNLOAD_CHECKPOINTS=0
+DOWNLOAD_LORAS=0
 DOWNLOAD_VIDEO_LORA=0
 # MiniMax H3's Turbo LoRA: not in Draw Things' catalogue, and without it the
 # app hides H3 (8 steps without it left a grid texture on the moving hair of
@@ -57,7 +61,7 @@ fi
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/setup.sh [--llms] [--anime-checkpoints] [--video-lora]
+Usage: ./scripts/setup.sh [--llms] [--loras] [--video-lora]
 
 Always run, no flags needed: Homebrew packages (Ollama, uv), the Ollama
 service, the Python environment, and the Real-ESRGAN upscaler. With no flags
@@ -70,13 +74,12 @@ The flags are additive and only decide what gets downloaded for you:
                         writing) and qwen3-vl:8b (reads images; needed by
                         From image..., Finalize+ and Animate's Improve with
                         LLM).
-  --anime-checkpoints   Three Danbooru-tagged checkpoints from Civitai,
-                        ~16GB: the LustrousMix Anima, BAS+ and
-                        CyberRealistic Anima mixes. Its own flag
-                        because these live on Civitai rather than Draw
-                        Things' own catalogue, so they need CIVITAI_TOKEN
-                        (civitai.com -> Account settings -> API Keys); none
-                        of them is needed to run the app.
+  --loras               Two speed LoRAs from Civitai, ~1.3GB: Anima Turbo
+                        (for Anima checkpoints) and Wuli Qwen-Image-2512
+                        Turbo (for Qwen Image). They live on Civitai rather
+                        than Draw Things' own catalogue, so they need
+                        CIVITAI_TOKEN (civitai.com -> Account settings ->
+                        API Keys); neither is needed to run the app.
   --video-lora          The Turbo LoRA for MiniMax H3, the recommended video
                         model (~0.8GB, from Hugging Face, no token). Animate
                         hides H3 until it is imported. H3 itself comes from
@@ -92,7 +95,7 @@ stops rather than filling the disk part way through.
 Examples:
   ./scripts/setup.sh                            # tooling + upscaler + what to install
   ./scripts/setup.sh --llms                     # + the two Ollama models
-  ./scripts/setup.sh --llms --anime-checkpoints # + the three anime checkpoints
+  ./scripts/setup.sh --llms --loras             # + the two speed LoRAs
   ./scripts/setup.sh --video-lora               # + MiniMax H3's Turbo LoRA
 USAGE
 }
@@ -100,41 +103,34 @@ USAGE
 for arg in "$@"; do
   case "$arg" in
     --llms) DOWNLOAD_LLMS=1 ;;
-    --anime-checkpoints) DOWNLOAD_CHECKPOINTS=1 ;;
+    --loras) DOWNLOAD_LORAS=1 ;;
     --video-lora) DOWNLOAD_VIDEO_LORA=1 ;;
     # dropped rather than aliased: it used to pull checkpoints too, and doing
     # that silently under a flag that says nothing about them would be worse
     # than an error that names the replacement
     --download-models)
       echo "--download-models is gone. Use: --llms (Ollama models) and/or"
-      echo "--anime-checkpoints (the Civitai anime checkpoints)."
+      echo "--loras (the Civitai speed LoRAs)."
+      exit 1 ;;
+    # dropped for the same reason: it fetched three named checkpoints, and the
+    # app now takes any checkpoint of a class it supports instead
+    --anime-checkpoints)
+      echo "--anime-checkpoints is gone: the app no longer names checkpoints to"
+      echo "download. Import any Illustrious, Anima or SDXL checkpoint into Draw"
+      echo "Things and it is set up for its class (docs/ADDING-A-MODEL.md)."
+      echo "--loras still fetches the two speed LoRAs."
       exit 1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $arg"; echo; usage; exit 1 ;;
   esac
 done
 
-# Civitai checkpoints Draw Things cannot fetch itself. Version IDs pinned to
-# the releases config/models.yaml is tuned for. Each row also carries the
-# model's ordinary web page: that page is downloadable straight from a
-# browser (your logged-in Civitai session covers any creator-side
-# login-required flag) if you'd rather skip CIVITAI_TOKEN entirely, and it's
-# the fallback whenever the scripted download below fails.
-# Format: <download name> <civitai version id> <download GB> <url>
-# Every model here is a Danbooru-tagged community mix on the Anima/Cosmos 2B
-# base (none of them is SDXL, so SDXL LoRAs do not apply). Sizes are
-# the rough download size, used for the disk check below; importing into Draw
-# Things converts the file and keeps both copies for a while, so budget
-# roughly double while an import runs.
-CIVITAI_MODELS="
-  hosekiLustrousmixAnima_animaV10 2982979 5 https://civitai.com/models/941345?modelVersionId=2982979
-  BASBetterAnimeStylePlusAnima_baseV10 3004325 5 https://civitai.com/models/2675648?modelVersionId=3004325
-  cyberrealisticAnima_v60AestheticV11 3136380 5 https://civitai.com/models/2668799?modelVersionId=3136380
-"
-# LoRAs from Civitai, fetched with the checkpoints they belong to. Kept apart
-# from CIVITAI_MODELS because the disk check sums whole gigabytes and these are
-# a fraction of one. Optional: without one, its models render at their own
-# (slower) settings -- see docs/GUIDE.md, Speed LoRAs.
+# Speed LoRAs from Civitai, fetched by --loras. Each row also carries the
+# LoRA's ordinary web page: downloadable straight from a browser (a logged-in
+# Civitai session covers any login-required flag) if you'd rather skip
+# CIVITAI_TOKEN, and the fallback whenever the scripted download fails.
+# Optional: without one, its models render at their own (slower) settings --
+# see docs/GUIDE.md, Speed LoRAs.
 # Format: <download name> <civitai version id> <download MB> <url>
 CIVITAI_LORAS="
   anima-turbo-lora-v0.2 2979642 140 https://civitai.com/models/2560840?modelVersionId=2979642
@@ -272,8 +268,8 @@ if [ ! -f "$ENV_FILE" ]; then
 #
 DRAFTPOOL_DATA_DIR=${DATA_IN_USE:-$PWD/data}
 
-# Read by ./scripts/setup.sh --anime-checkpoints, to download the Civitai
-# checkpoints, and by Publish... in the app. Make a key at civitai.com ->
+# Read by ./scripts/setup.sh --loras, to download the Civitai LoRAs, and by
+# Publish... in the app. Make a key at civitai.com ->
 # Account settings -> API Keys.
 #CIVITAI_TOKEN=
 ENVFILE
@@ -368,7 +364,7 @@ else
   echo "   (it usually stays on, but can switch itself off after an app update)"
 fi
 
-if [ "$DOWNLOAD_LLMS" = "1" ] || [ "$DOWNLOAD_CHECKPOINTS" = "1" ] || [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
+if [ "$DOWNLOAD_LLMS" = "1" ] || [ "$DOWNLOAD_LORAS" = "1" ] || [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
   # Add up what this run will actually pull and refuse before starting rather
   # than dying half way through a 20GB download with a full disk.
   echo "== Disk check"
@@ -387,38 +383,21 @@ $OLLAMA_MODELS
 EOF
     NEED_GB=$((NEED_GB + LLM_NEED_GB))
   fi
-  CKPT_NEED_GB=0
-  if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
-    # not checked the same way: a checkpoint in $DEST may be a partial download
-    # that curl will resume, so its presence says nothing about what is left
-    while read -r name version gb url; do
-      [ -z "$name" ] && continue
-      CKPT_NEED_GB=$((CKPT_NEED_GB + gb))
-    done <<EOF
-$CIVITAI_MODELS
-EOF
-    NEED_GB=$((NEED_GB + CKPT_NEED_GB))
+  if [ "$DOWNLOAD_LORAS" = "1" ]; then
+    NEED_GB=$((NEED_GB + 2))
   fi
   if [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
     NEED_GB=$((NEED_GB + 1))
   fi
   HAVE_GB="$(free_gb "$HOME")"
   echo "-- this run downloads about ${NEED_GB}GB; ${HAVE_GB}GB free on $HOME"
-  if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
-    echo "-- importing a checkpoint converts it and keeps both copies while that"
-    echo "   runs, so leave a few GB of headroom beyond that figure"
-  fi
   if [ "$HAVE_GB" -lt "$NEED_GB" ]; then
     echo "!! Not enough free space. Nothing has been downloaded."
-    if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
-      echo "   Dropping --anime-checkpoints would cut this by ${CKPT_NEED_GB}GB."
-    fi
-    echo "   Free up space and re-run, or download by hand from the Civitai"
-    echo "   pages printed at the end of this run."
+    echo "   Free up space and re-run."
     exit 1
   elif [ "$((HAVE_GB - NEED_GB))" -lt 10 ]; then
     echo "!! Only $((HAVE_GB - NEED_GB))GB would be left over. Draw Things needs room to"
-    echo "   convert each checkpoint on import, so this may still run out."
+    echo "   convert each model on import, so this may still run out."
   fi
 
 fi
@@ -437,8 +416,8 @@ if [ "$DOWNLOAD_LLMS" = "1" ]; then
 
 fi
 
-if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
-  echo "== Civitai anime checkpoints (~16GB with their LoRAs, for import into Draw Things)"
+if [ "$DOWNLOAD_LORAS" = "1" ]; then
+  echo "== Civitai speed LoRAs (~1.3GB, for import into Draw Things)"
   DEST="$HOME/Downloads/draftpool-models"
   mkdir -p "$DEST"
   TOKEN_PARAM=""
@@ -452,21 +431,6 @@ if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
     echo "   your Civitai login already covers it."
   fi
   rm -f "$DEST/.failed"
-  echo "$CIVITAI_MODELS" | while read -r name version gb url; do
-    [ -z "$name" ] && continue
-    out="$DEST/$name.safetensors"
-    echo "-- $name  ~${gb}GB  ($url)"
-    # curl -C - resumes a partial file and no-ops a already-complete one, so
-    # there's no need to pre-check the file: safe to just always attempt it,
-    # whether this is a fresh run or a retry after an interrupted download.
-    if curl -L --fail --retry 3 -C - -o "$out" \
-        "https://civitai.com/api/download/models/$version?type=Model&format=SafeTensor$TOKEN_PARAM"; then
-      echo "   done"
-    else
-      echo "   FAILED -- download it by hand instead: $url"
-      echo "$name" >> "$DEST/.failed"
-    fi
-  done
   echo "$CIVITAI_LORAS" | while read -r name version mb url; do
     [ -z "$name" ] && continue
     out="$DEST/$name.safetensors"
@@ -484,8 +448,7 @@ if [ "$DOWNLOAD_CHECKPOINTS" = "1" ]; then
     rm -f "$DEST/.failed"
   fi
   echo "Downloaded to $DEST. Import each file in Draw Things:"
-  echo "  checkpoints: Models list -> Manage -> Import Model (conversion runs once)"
-  echo "  the LoRA:    LoRA list -> Manage -> Import LoRA"
+  echo "  LoRA list -> Manage -> Import LoRA"
 fi
 
 if [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
@@ -501,11 +464,11 @@ if [ "$DOWNLOAD_VIDEO_LORA" = "1" ]; then
   fi
 fi
 
-if [ "$DOWNLOAD_LLMS" != "1" ] && [ "$DOWNLOAD_CHECKPOINTS" != "1" ] && [ "$DOWNLOAD_VIDEO_LORA" != "1" ]; then
+if [ "$DOWNLOAD_LLMS" != "1" ] && [ "$DOWNLOAD_LORAS" != "1" ] && [ "$DOWNLOAD_VIDEO_LORA" != "1" ]; then
   echo
-  echo "== No models downloaded (no --llms / --anime-checkpoints / --video-lora given)"
+  echo "== No models downloaded (no --llms / --loras / --video-lora given)"
   echo "-- everything below is the full list of what to install, and where each"
-  echo "   piece comes from. Re-run with --llms, --anime-checkpoints and/or"
+  echo "   piece comes from. Re-run with --llms, --loras and/or"
   echo "   --video-lora to have this script fetch what it can."
 fi
 
@@ -546,31 +509,19 @@ then hides rather than failing on.
    pass, and a plain resize is visibly softer, so the button stays disabled
    until one is installed.
 
-5. The three anime checkpoints below are not in that catalogue (optional
-   only if you like the style), so they have to be fetched separately
-   (~16GB with their LoRAs), all Danbooru-tagged Anima models. Take any
-   subset: each generates its own images. Two ways to get them:
-     - ./scripts/setup.sh --anime-checkpoints, which needs CIVITAI_TOKEN
-     - open the pages below and download in a browser: your Civitai
-       login there is enough, no token needed
+5. Checkpoints from Civitai, if you want more than the catalogue's: the app
+   supports three classes of model rather than a list of them --
+   ${B}Illustrious${N} and ${B}Anima${N} (anime, Danbooru-tagged) and ${B}SDXL${N}. Download
+   any checkpoint of those from its Civitai page, import the .safetensors in
+   Draw Things via Models list -> Manage -> Import Model, and refresh the
+   app: it is set up for its class, or with its own measured settings when
+   it is a version measured for this app (docs/ADDING-A-MODEL.md).
 
-EOF
-echo "$CIVITAI_MODELS" | while read -r name version gb url; do
-  [ -z "$name" ] && continue
-  echo "     ${B}${name}${N}  ~${gb}GB"
-  echo "         $url"
-done
-cat <<EOF
-
-   Either way that only downloads the files. Import each .safetensors in
-   Draw Things via Models list -> Manage -> Import Model; conversion runs
-   once per file.
-
-   With them, optionally, two speed LoRAs: ${B}Anima Turbo${N} (~140MB), which
-   makes LustrousMix and CyberRealistic Anima about five times faster (a
-   darker look, and no negative prompt), and ${B}Wuli Qwen-Image-2512 Turbo${N}
-   (~1.1GB), four times faster Qwen Image drafts and finals. Each has a tick
-   in the app's settings. --anime-checkpoints fetches both; by hand, from:
+   Optionally, two speed LoRAs from Civitai: ${B}Anima Turbo${N} (~140MB), about
+   five times faster Anima finals (a darker look, and no negative prompt),
+   and ${B}Wuli Qwen-Image-2512 Turbo${N} (~1.1GB), four times faster Qwen Image
+   drafts and finals. Each has a tick in the app's settings. --loras
+   fetches both, with CIVITAI_TOKEN; by hand, from:
 EOF
 echo "$CIVITAI_LORAS" | while read -r name version mb url; do
   [ -z "$name" ] && continue
@@ -578,10 +529,6 @@ echo "$CIVITAI_LORAS" | while read -r name version mb url; do
 done
 cat <<EOF
    and import them in Draw Things via LoRA list -> Manage -> Import LoRA.
-
-   Any other Illustrious, Anima or SDXL checkpoint: import it in Draw Things,
-   then ${B}uv run python scripts/add_civitai_model.py${N} lists it and adds it with
-   its base model's settings (docs/SETUP.md, "Adding any other model").
 
 EOF
 # unquoted so the free-space figure expands; the text below has no other

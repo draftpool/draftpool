@@ -104,7 +104,8 @@ background service; if it isn't running, start it with
 The page header shows **Draw Things up · Ollama up** once everything is
 connected.
 
-The community models from Civitai, the image editor, the video models and
+The models it supports (Draw Things' catalogue, plus any Illustrious, Anima
+or SDXL checkpoint from Civitai), the image editor, the video models and
 troubleshooting are covered in the [full setup guide](docs/SETUP.md).
 
 ### Your data
@@ -128,7 +129,7 @@ Also as a website: https://draftpool.github.io/draftpool/
 - [Guide](docs/GUIDE.md): what each action does, how long it takes, and how to
   get good results.
 - [Deep dive](docs/DEEP-DIVE.md): edge cases and workarounds.
-- [Setup](docs/SETUP.md): full install, Civitai models, data, updating,
+- [Setup](docs/SETUP.md): full install, supported models, data, updating,
   troubleshooting.
 - [Adding a model](docs/ADDING-A-MODEL.md): plugging in a model from Civitai,
   or measuring one the app doesn't include.

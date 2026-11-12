@@ -10,7 +10,8 @@ them (see the [README](../README.md#license)).
   generation app and API server that does all the rendering.
 - [Ollama](https://ollama.com/): runs the local LLMs that write prompts and
   describe images.
-- [Civitai](https://civitai.com/): hosts the community models below.
+- [Civitai](https://civitai.com/): hosts the community checkpoints and two of
+  the speed LoRAs.
 
 **Prompt-writing LLMs**
 - [Gemma 3](https://ai.google.dev/gemma) (Google DeepMind): the default.
@@ -40,10 +41,9 @@ them (see the [README](../README.md#license)).
   [Turbo LoRA](https://huggingface.co/inflected111/MiniMax-H3-Turbo-Lora) by
   larryvrh.
 
-**Community models (Civitai)**
-- [LustrousMix Anima v1.0](https://civitai.com/models/941345?modelVersionId=2982979): Hoseki.
-- [BAS+ Better Anime Style Plus](https://civitai.com/models/2675648?modelVersionId=3004325): news_v_com.
-- [CyberRealistic Anima](https://civitai.com/models/2668799?modelVersionId=3136380): Cyberdelia.
+**Community checkpoints (Civitai)**
+- The Illustrious, Anima and SDXL checkpoints you import are each their
+  authors' work, under the license on their Civitai page.
 
 **Speed LoRAs**
 - [Qwen-Image-Edit-2511 Lightning](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning): LightX2V.
