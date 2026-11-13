@@ -315,8 +315,9 @@ chip.
 - **"no reply within 300s" from the LLM**: the model took too long, often
   because it was still loading. Press **Retry**. If it keeps happening, choose
   a smaller model, or raise `llm.request_timeout` in `config/models.yaml`.
-- **Running out of disk during downloads**: the script checks space first. The
-  Civitai models need about 16GB, the LLMs about 14GB, and Draw Things' own
-  models typically about 40GB more.
+- **Running out of disk during downloads**: the script checks space first, but
+  it only downloads the LLMs (about 14GB) and the LoRAs (about 2GB together).
+  Most of the disk goes on the models Draw Things downloads itself; setup
+  prints each one's size, and importing one briefly needs room for two copies.
 - **Upscale is disabled with "no upscaler installed"**: download **4x
   UltraSharp** in Draw Things under **Official Upscalers**.

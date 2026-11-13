@@ -7,8 +7,8 @@
 # rendered and judged on that exact file. Generated from the measured
 # entries; not edited by hand.
 #
-#   key, label           the app's key and name for it; only on a model that is
-#                        not adult-flagged on Civitai, the rest are not named
+#   key, label           the app's key and name for it; only on a model that may
+#                        be named, the rest are not named
 #   draw_things_version  the architecture Draw Things records for the import;
 #                        a mismatch is refused
 #   fingerprints         its weights in Draw Things' converted file, so the app
@@ -255,8 +255,6 @@ tuned:
         steps: 20
         strength: 0.3
   3334245:
-    key: unholy-desire-anima
-    label: Unholy Desire Anima
     draw_things_version: cosmos2.5_2b
     fingerprints:
     - ca4db6674cdaba039d759d263da4e89690d953b382e41b175cef824845c96488

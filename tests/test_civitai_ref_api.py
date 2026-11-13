@@ -29,7 +29,7 @@ def test_the_page_can_send_what_the_civitai_page_shows(client):
 
 def test_a_reference_that_names_no_version_is_refused_and_changes_nothing(client):
     key = next(iter(main.registry.models))
-    r = client.put(f"/api/models/{key}/civitai", json={"ref": "the unholy one"})
+    r = client.put(f"/api/models/{key}/civitai", json={"ref": "not a reference"})
     assert r.status_code == 400 and "AIR" in r.json()["detail"]
     assert client.put("/api/models/no-such-model/civitai", json={"ref": "1"}).status_code == 404
     assert client.done == []

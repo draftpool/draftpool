@@ -43,6 +43,29 @@ theme:
     - search.highlight
     - content.code.copy
 
+extra:
+  # GA4 stream "draftpool" (https://draftpool.github.io); Material injects
+  # gtag.js on every page and reports instant-navigation page views itself
+  analytics:
+    provider: google
+    property: G-BVXWBCBJS3
+  # nothing is sent to Google until the visitor accepts; the analytics box
+  # starts ticked, and the footer link reopens the dialog
+  consent:
+    title: Cookie consent
+    description: >-
+      This site uses cookies to count visits and see which pages are read,
+      so the documentation can be improved. Nothing is sent to Google
+      Analytics unless you accept.
+    actions: [accept, reject, manage]
+    cookies:
+      analytics:
+        name: Google Analytics
+        checked: true
+
+copyright: >-
+  <a href="#__consent">Change cookie settings</a>
+
 markdown_extensions:
   - admonition
   - attr_list

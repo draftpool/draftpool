@@ -326,7 +326,7 @@ models are offered, and **MiniMax H3 is the default and the recommendation**:
 
 | model | clip lengths | a 2-second clip | a 5-second clip | pose changes |
 |---|---|---|---|---|
-| **MiniMax H3 + Turbo** | 1 to 5 s at 24 fps | about 6 min | about 14 min | yes |
+| **MiniMax H3 + Turbo** | 1 to 8 s at 24 fps | about 6 min | about 14 min | yes |
 | **Wan 2.1 FusionX** | 1 to 5 s at 16 fps | about 12 min | about 30 min | no |
 
 H3 is about twice as fast, and it can change a pose: asked to stand up from a

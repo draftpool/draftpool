@@ -75,7 +75,7 @@ try {
   const lengths = () => page.evaluate(() =>
     [...document.querySelectorAll("#animLen option")].map(o => [Number(o.value), o.selected, o.textContent]));
   let opts = await lengths();
-  check("H3 offers its own grid", opts.map(o => o[0]).join() === "22,56,73,124", opts.map(o => o[0]).join());
+  check("H3 offers its own grid", opts.map(o => o[0]).join() === "22,56,73,124,141,192", opts.map(o => o[0]).join());
   check("H3 defaults to about 2s", opts.find(o => o[1])?.[0] === 56, opts.find(o => o[1])?.[2]);
   check("labels in H3's seconds", opts.map(o => o[2]).includes("5.2s (124f)"), opts.map(o => o[2]).join(" | "));
   const est = await page.$eval("#animEst", e => e.textContent);

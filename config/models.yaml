@@ -5,7 +5,9 @@
 # Leave dt_filename empty to hide a model from the UI.
 #
 # cfg maps to cfg_scale in the Draw Things API (guidance for FLUX-family models).
-# sampler: leave null to use whatever Draw Things has configured for the model.
+# sampler: always set. A null sampler leaves sampler_name out of the request
+# and Draw Things renders with whatever its UI is left on
+# (docs/decisions/MODEL-MEASUREMENTS.md).
 #
 # draft.steps and final.steps here are the shipped defaults, and the value the
 # UI's Reset returns to. An install can change either from the gear in the
@@ -57,8 +59,7 @@ draw_things:
   #   4x UltraSharp                371 / 312   <- and no ringing, checked by eye
   # UltraSharp wins on both kinds of content by a wide margin, and Remacri and
   # UniversalUpscaler are actively bad on anime -- below even the ncnn binary.
-  # An earlier ordering here put Remacri first, from a run that still had a
-  # 0.05-strength diffusion pass in the harness. See docs/decisions/UPSCALING.md.
+  # See docs/decisions/UPSCALING.md.
   upscalers:
     - "4x_ultrasharp_f16.ckpt"
     - "remacri_4x_f16.ckpt"
@@ -83,11 +84,15 @@ upscale_sizes: [2048, 3072, 4096]
 # The app treats that budget as an area and derives both sides from the chosen
 # ratio at constant area, landing them on the 64px grid, so a shape normally
 # costs no extra time. Often aspect_size is the model's final size.
-# It is lower where that size has not been shown to hold up -- what a model
-# composes correctly at is an AREA, and a configured size is only evidence
-# about the area it was measured at. The SDXL entries shape at 1024 under a
-# 1536 final, and qwen-image at 864 under its step ceiling. Square is exempt
-# from all of this and renders at the configured size exactly as before.
+# It is lower where that size does not hold up -- what a model composes
+# correctly at is an AREA, and a configured size is only evidence about the
+# area it was measured at. The SDXL entries shape at 1024 under a 1536 final,
+# and qwen-image at 864 under its step ceiling. Square is exempt from all of
+# this and renders at the configured size.
+#
+# The budget is not automatically the final size. A square proves the area;
+# the long edge is a separate limit. z-image-turbo holds every square and every
+# 4:3 at a 1536 budget and doubles its subject at 16:9 (2048x1152).
 #
 # A new model ships with a best guess -- its final size, or 1024 for SDXL --
 # and the guess is then checked where it would break first: the widest shape
@@ -97,20 +102,11 @@ upscale_sizes: [2048, 3072, 4096]
 # insists that cell exists at the size the budget now gives). Look for a
 # subject duplicated left/right, a second head or horizon down the frame, or a
 # stretched face. If it duplicates, take two controls before blaming the
-# ratio, because this file has twice carried a wrong explanation for want of
-# them: the sweep's square at the same seed, and a re-run after restarting
+# ratio: the sweep's square at the same seed, and a re-run after restarting
 # Draw Things. A degraded Draw Things session produces duplicated subjects at
 # every size and shape while still reporting success. If square is clean and
 # the shape is not on a healthy session, step the budget down one grid notch
-# at a time until the widest shape holds, and stop there -- that is how
-# z-image-turbo's 1472 was found, in one cell, after two full sweeps had
-# only bracketed it.
-#
-# The budget is NOT automatically the final size. It was assumed to be, on
-# SHAPES.md's square grids, and z-image-turbo doubled its subject at 16:9 the
-# first time anyone rendered one at 1536 (2048x1152), while every square and
-# every 4:3 at the same budget held. What a square proves is the area; the
-# long edge is a separate limit and has to be looked at on its own.
+# at a time until the widest shape holds, and stop there.
 
 models:
   flux2-klein:
@@ -127,11 +123,9 @@ models:
     # FLUX.2 Klein, civitai.com/models/2322332 (Civitai official), version
     # "9B" -- the variant this build is, not the 9B-Base beside it.
     civitai_version_id: 2612554
-    # img2img used to segfault Draw Things here (kontext/edit model hitting a
-    # broken reference-image path) and was disabled. Re-measured and working:
     # 512px comes back at 0.999 correlation with the source and 2048px at
-    # 0.993, no crash. It reaches 2048 without diffusion tiling, so it needs
-    # no help -- just the slowest of the lot at that size.
+    # 0.993. It reaches 2048 without diffusion tiling -- just the slowest of
+    # the lot at that size.
     supports_img2img: true
     # per BFL's FLUX.2 prompting guide
     prompt_guidance: |
@@ -143,11 +137,7 @@ models:
       ("sharp focus throughout", not "no blur"). Text that should appear in
       the image goes in double quotes. No tag lists, no weighting syntax.
     # DDIM Trailing, Draw Things' recommendation for this checkpoint (sampler
-    # 16). Explicit rather than null for the reason set out at length on
-    # krea2-turbo below: an omitted `sampler_name` inherits whatever sampler
-    # the Draw Things UI is left on, which broke that model outright the day a
-    # different model changed the ambient value. Same architecture family, same
-    # CFG 1 distilled recipe, same exposure -- fixed here before it bites.
+    # 16).
     sampler: "DDIM Trailing"
     cfg: 1.0
     uses_negative_prompt: false
@@ -156,27 +146,16 @@ models:
     # subject stayed a reasonable size throughout -- the mildest decay of any
     # model here apart from Juggernaut.
     prompt_budget: { full: 450, fading: 900 }
-    # 768, and this is the first draft value here that was accepted on its
-    # Faithful (DRAFT-STEPS.md's rule) rather than on the draft. It shipped at
-    # 256, then 512 -- 256 is too small to judge a draft by, and 512 fixed a
-    # shape bug on top (at a 256 budget the 64px grid has four steps a side, so
-    # 4:3 and 16:9 BOTH round to 320x192; at 512 they are 576x448 and 704x384,
-    # see docs/decisions/SHAPES.md). Neither was ever put through a Faithful,
-    # and the Faithful over the 512 draft is soft: at 1:1 the lace collar is
-    # blobs, the linen is flat and the hair has no strands, where the same seed
-    # from a 768 draft resolves all three (frames in research/draft-size/
-    # flux2-klein, seed 1111, both scenes; Laplacian on the Faithful 106 -> 234
-    # and 74 -> 163, corroboration only). Costs 29s -> 47s a draft on an idle
-    # M4 Pro; the Faithful is 193s either way.
+    # 768, accepted on its Faithful (docs/decisions/DRAFT-STEPS.md). The
+    # Faithful over a 512 draft is soft: at 1:1 the lace collar is blobs, the
+    # linen is flat and the hair has no strands, where the same seed from a
+    # 768 draft resolves all three (research/draft-size/flux2-klein). 47s a
+    # draft on an idle M4 Pro; the Faithful is 193s.
     #
-    # The two other levers were rendered over the same 512 draft and do
-    # nothing: 32 steps (16 real, 376s) and strength 0.7 (285s) each come back
-    # as the same picture as the shipped 16 at 0.5. Softness here is the init,
-    # not the schedule. research/draft-size/klein_faithful.py is that probe.
-    # Nor is a bigger Faithful frame: at a 1536 budget (1856x1280, two seeds)
-    # the Faithful is SOFTER per pixel than at 1280x832 -- fur enlarged, not
-    # repainted -- for 525s against 193s (research/draft-size/faithful_size.py,
-    # DRAFT-STEPS.md "A Faithful size of its own"). No faithful_size here.
+    # The Faithful's own levers do not help a soft init: 32 steps and strength
+    # 0.7 each come back as the same picture as 16 at 0.5, and a bigger
+    # Faithful frame (1536 budget) is softer per pixel for 525s against 193s
+    # (DRAFT-STEPS.md, "A Faithful size of its own"). No faithful_size here.
     draft: { size: 768, steps: 6 }
     # FLUX.2 supports up to 4MP; 1536 finals look outstanding but cost ~9 min
     # on M4 Pro, so default to 1024 (flip size to 1536 for keeper images)
@@ -230,10 +209,9 @@ models:
       syntax.
     # DDIM Trailing, as FLUX.2 klein: Draw Things' catalogue has no saved
     # configuration for this model, only "16 steps, Text Guidance 1 and Shift
-    # 16" in its note, and every frame below rendered clean on it. Explicit
-    # rather than null for the reason on krea2-turbo. Shift cannot be set
-    # over the HTTP API for stills (app/dt_client.py), so Draw Things' own
-    # value applies.
+    # 16" in its note, and every frame below rendered clean on it. Shift
+    # cannot be set over the HTTP API for stills (app/dt_client.py), so Draw
+    # Things' own value applies.
     sampler: "DDIM Trailing"
     cfg: 1.0
     uses_negative_prompt: false
@@ -262,20 +240,16 @@ models:
 
   flux1-schnell:
     label: "FLUX.1 schnell"
-    # Kept, but not recommended: the same FLUX text-to-image stack as klein
+    # Supported, not recommended: the same FLUX text-to-image stack as klein
     # above, a generation older and capped lower, so installing both buys
-    # little. The entry stays because it is inert when the file is absent (the
-    # chip hides itself) and because it is permissively licensed -- Apache-2.0,
-    # where most of the rest carry their authors' own terms. That last argument
-    # is weaker than it was: z-image-turbo below is Apache-2.0 too, newer, and
-    # faster. Its earlier distinctive job, gentlest stand-in for cross-model
-    # upscaling, went away with upscale_via (docs/decisions/UPSCALING.md).
+    # little. Apache-2.0, as is z-image-turbo, which is newer and faster. Inert
+    # when the file is absent (the chip hides itself).
     aspect_size: 1024
     dt_filename: "flux_1_schnell_q8p.ckpt"
     # FLUX, civitai.com/models/618692, version "Schnell".
     civitai_version_id: 699279
     # Euler A Trailing, Draw Things' recommendation for this checkpoint
-    # (sampler 10); explicit for the same reason as klein above.
+    # (sampler 10).
     sampler: "Euler A Trailing"
     cfg: 1.0
     uses_negative_prompt: false
@@ -285,40 +259,27 @@ models:
       Front-load the most important content in the first sentence. Never use
       negative phrasing ("sharp focus", not "no blur"). No tag lists, no
       weighting syntax, no artist names.
-    # Deliberately not measured, and left at the conservative default: this
-    # model is supported rather than recommended (see docs/SETUP.md), it is the
-    # same FLUX stack as klein one generation older, and the numbers that would
-    # come out of a probe are not worth the renders. If it ever becomes the
-    # model somebody actually uses, probe it as docs/decisions/PROMPT-LENGTH.md
-    # describes; until then the tightest shipped budget is the safe assumption.
+    # Not measured: this model is supported rather than recommended (see
+    # docs/SETUP.md), and the tightest shipped budget is the safe assumption.
+    # Probe it as docs/decisions/PROMPT-LENGTH.md describes if it matters.
     prompt_budget: { full: 240, fading: 600 }
-    # Was 256. 768 is the floor for every draft's long side (tests/
-    # test_registry.py): a draft is what a Faithful enlarges, and its pixels
-    # are what it can carry.
+    # 768 is the floor for every draft's long side (tests/test_registry.py): a
+    # draft is what a Faithful enlarges, and its pixels are what it can carry.
     draft: { size: 768, steps: 4 }
     # FLUX.1 is a 0.1-2MP model; 1024 is its sweet spot, use Upscale for more
     final: { size: 1024, steps: 6, strength: 0.5 }
     upscale: { size: 2048, steps: 4, strength: 0.3 }
-    # the gentlest stand-in measured: it rewrites the least of any partner,
-    # for anime and semi-real sources alike, but a 2048 FLUX pass is slow
     upscale_seconds: 145
 
   z-image-turbo:
     label: "Z-Image Turbo"
-    # Below the 1536 final, and measured there: this shipped at 1536 for two
-    # weeks on the argument that SHAPES.md had found no resolution limit, and
-    # the first 16:9 final anyone rendered at that budget (2048x1152) came back
-    # with two boats, two castles and two rabbits. On the standard scene
-    # (research/aspect/z-image-turbo, seeds 1111/2222, 4 steps) the 1536
-    # budget holds one figure at 4:3 (1792x1344) and 3:2 (1856x1280) and draws
-    # two women, two trees and a second horizon at 16:9 and 9:16, the two
-    # shapes with a 2048 long edge -- 4 of 4 cells. Then one grid step down
-    # from the failure: 1984x1088 (this budget's 16:9, seed 1111, 2 steps --
-    # enough to read a doubling, see RUNS.md) is one figure, so the line is
-    # between 1984 and 2048 and the budget sits just under it. 1280 was also
-    # swept clean on every shape (14 of 14) before the step-down found 1472.
-    # SHAPES.md's finding was about squares; this is the model that showed it
-    # does not carry to the widest shapes.
+    # Below the 1536 final. At a 1536 budget (research/aspect/z-image-turbo,
+    # seeds 1111/2222, 4 steps) it holds one figure at 4:3 (1792x1344) and 3:2
+    # (1856x1280) and draws two women, two trees and a second horizon at 16:9
+    # and 9:16, the two shapes with a 2048 long edge -- 4 of 4 cells. One grid
+    # step down, 1984x1088 (this budget's 16:9, seed 1111, 2 steps) is one
+    # figure, so the line is between 1984 and 2048 and the budget sits just
+    # under it. 1280 is clean on every shape (14 of 14).
     aspect_size: 1472
     dt_filename: "z_image_turbo_1.0_i8x.ckpt"
     # Z Image Turbo, civitai.com/models/2168935 (Civitai official); the
@@ -349,69 +310,42 @@ models:
     # budget sits below it. `fading` is where the ladder stopped, not a cliff
     # anybody found.
     prompt_budget: { full: 260, fading: 800 }
-    # Measured at 1024, seed 4242: 4 steps 30s, 8 steps 43s, 12 steps 64s,
-    # 16 steps 84s. The picture is already coherent and photographic at 4 and
-    # stops changing after 8 -- 12 and 16 buy nothing visible for 1.5-2x the
-    # time -- so the distilled recommendation holds and 8 is the setting.
-    # Draft sizes at 8 steps: 256 6s, 384 9s, 512 14s, 768 25s (re-measured
-    # 22s and 32s on the idle install below). 512 was the pick on the draft
-    # alone -- a readable preview for 14s, and this model's look does not
-    # change with resolution -- and it fails DRAFT-STEPS.md's actual test, the
-    # Faithful. That is a 3x enlargement here (512 -> 1536, the largest in the
-    # app) and it comes back smeared: the vendor's face is paint, the fish have
-    # no scales, the chalk lettering is mush, and the portrait's skin is
-    # airbrushed wax. From a 768 draft the same seed resolves face, knit,
-    # chalk strokes and pores (research/draft-size/z-image-turbo, seed 1111,
-    # both scenes; Faithful Laplacian 21 -> 67 and 8 -> 25, against 127 for
-    # the txt2img final of the same scene). +10s a draft; the Faithful is 133s
-    # either way. Nothing above 768 was tried.
+    # 8 steps: measured at 1024, seed 4242, 4 steps 30s, 8 steps 43s, 12 steps
+    # 64s, 16 steps 84s. Coherent and photographic at 4, no change after 8.
+    # 768, accepted on its Faithful (DRAFT-STEPS.md): the Faithful is a 2x
+    # enlargement here (768 -> 1536). From a 512 draft the same seed comes back
+    # smeared -- the vendor's face is paint, the fish have no scales, the chalk
+    # lettering is mush, the portrait's skin is airbrushed wax -- where 768
+    # resolves face, knit, chalk strokes and pores (research/draft-size/
+    # z-image-turbo, seed 1111, both scenes). 22-32s a draft; the Faithful is
+    # 133s. Nothing above 768 was tried.
     draft: { size: 768, steps: 8 }
-    # Square finals measured clean at 1024 (43s), 1280 (73s) and 1536 (119s),
-    # seeds 1111/2222/3333/4242 per SHAPES.md -- single subject in 12 of 12
-    # cells, no duplication anywhere. 1536, not the 1024 this shipped with: the
-    # top of what was measured, taken deliberately at ~3x the time, because a
-    # final is rendered once and looked at for a long time. This model is still
-    # the fast one -- 119s against FLUX.2 klein's ~9 minutes at the same size,
-    # which is why klein was left at 1024 when this was raised. Steps stay at 8:
-    # 12 and 16 buy nothing visible (see above), so size was the only lever
-    # left on this stage.
-    #
-    # Confirmed on whole frames afterwards, at 8 / 16 / 24 on two crowded
-    # scenes (docs/decisions/FINAL-STEPS.md; cells in research/final-steps/):
-    # practically no difference between any of them, so 8 stands -- at a third
-    # of the cost of 24 (122s against 348s).
-    #
-    # Two things worth keeping from that run. This is the one model where Draw
-    # Things' recommended step count turned out to be right when looked at, so
-    # the catalogue is not systematically wrong, it is simply not evidence. And
-    # the Laplacian score FELL monotonically as steps rose (126.6 -> 105.8 ->
-    # 93.3 on the market scene) across three cells nobody can tell apart: more
-    # proof that the metric is not a quality proxy, in the gentlest possible
-    # form -- no broken cell needed, just a number moving while the picture
-    # does not.
+    # 1536: square finals measured clean at 1024 (43s), 1280 (73s) and 1536
+    # (119s), seeds 1111/2222/3333/4242 per SHAPES.md -- single subject in 12
+    # of 12 cells. The top of what was measured, taken at ~3x the time because
+    # a final is rendered once and looked at for a long time; still the fast
+    # model at that size (FLUX.2 klein takes ~9 minutes). 8 steps: swept at
+    # 8 / 16 / 24 on two crowded scenes (docs/decisions/FINAL-STEPS.md; cells
+    # in research/final-steps/), practically no difference, at a third of the
+    # cost of 24 (122s against 348s).
     final: { size: 1536, steps: 8, strength: 0.5 }
-    # Measured, and the surprise here is the failure mode rather than the fix.
-    # Untiled, 2048 does NOT come back as the flat colour field the Cosmos and
-    # Krea models return -- it comes back speckled, fine noise over every flat
-    # area (sky, water), while correlating 0.9894 with its own source. So the
-    # "flat while reporting success" test that turns this flag on elsewhere
-    # would have passed it, and only looking at the image caught it.
-    # tiled_diffusion clears it: 0.9952, clean by eye, 62s against 51s.
+    # Untiled, 2048 comes back speckled -- fine noise over every flat area
+    # (sky, water) -- while correlating 0.9894 with its source, so the "flat
+    # while reporting success" test that turns this flag on elsewhere would
+    # pass it; only looking at the image shows it. tiled_diffusion clears it:
+    # 0.9952, clean by eye, 62s against 51s.
     upscale: { size: 2048, steps: 8, strength: 0.3 }
     tiled_diffusion: true
     upscale_seconds: 62
-    # No max_upscale_size here, unlike the two slow models: 4096 was measured
-    # and comes back clean in 181s, so the 3K and 4K the picker offers on the
-    # strength of tiled_diffusion are offers this model can actually keep.
+    # No max_upscale_size: 4096 comes back clean in 181s, so the 3K and 4K the
+    # picker offers on the strength of tiled_diffusion hold here.
 
   lustrousmix-anima:
     label: "LustrousMix Anima"
     # Below the 1536 final: 16:9 at that budget (2048x1152, seed 1111, 12
     # steps, research/aspect/lustrousmix-anima) draws two women, one grid
     # step down (1984x1088, 8 steps) draws one. Same line as z-image-turbo
-    # and bas-anima, found the same way. The earlier seed-4242 portrait
-    # readings came from a sick Draw Things session and say nothing
-    # (docs/decisions/SHAPES.md).
+    # and bas-anima (docs/decisions/SHAPES.md).
     aspect_size: 1472
     # its guidance below asks for exactly this and no other quality tags; the
     # shared default opener ("very aesthetic", "absurdres" -- Illustrious
@@ -456,93 +390,39 @@ models:
       artifacts, signature, sepia, fewer digits, extra digits, bad hands, bad
       anatomy, watermark, censored, score_1, score_2, score_3" and may append
       scene-specific tags to avoid.
-    # Measured. `full` is 240 rather than 300 because the subject-size curve
-    # decides it and that curve collapses immediately after 236 characters:
-    # the subject holds 52% of frame height at 236 and 22% at 393. 300 sat in
-    # the middle of that fall with nothing measured at it. `fading` is higher
-    # than BAS+'s because the end-of-prompt marker survives further here --
-    # solid at 393, a speck by 592 and still a speck at 860.
+    # Measured. `full` is 240 because the subject-size curve decides it and
+    # that curve collapses immediately after 236 characters: the subject holds
+    # 52% of frame height at 236 and 22% at 393. `fading` is higher than
+    # BAS+'s because the end-of-prompt marker survives further here -- solid
+    # at 393, a speck by 592 and still a speck at 860.
     prompt_budget: { full: 240, fading: 600 }
-    # UniPC Trailing at 12 steps, replacing Euler a at 20. This entry has now
-    # been through 14 -> 20 (more steps, to form the eyes) -> 12 (fewer steps
-    # on a deterministic sampler, which forms them for less), and the middle
-    # step is the one worth understanding: Euler a is ancestral, so it needs a
-    # long schedule to settle, and the fix for a soft face was reached for in
-    # steps because the sampler was held fixed. It was the sampler.
+    # UniPC Trailing at 12 steps: 35.3s a draft at 768, indistinguishable from
+    # Euler a at 20 (57.7s) across several seeds on a portrait and a crowded
+    # scene. 16 (46.5s) is the place to go if a scene ever looks thin
+    # (docs/decisions/MODEL-MEASUREMENTS.md).
     #
-    # Measured at 768, cfg 4.5. Speed, median of three renders on an IDLE
-    # machine, spread under 0.2s: Euler a 20 = 57.7s, UniPC Trailing 16 =
-    # 46.5s, UniPC Trailing 12 = 35.3s. That is 22.4s off every draft, 39%.
+    # DO NOT use DPM++ 2M Karras on this checkpoint: it returns pure noise at
+    # 12 and 16 steps -- a lavender speckle field with no subject, reported as
+    # a success. It belongs to the Anima/Cosmos base, not to a Turbo LoRA.
     #
-    # Quality, judged the way this file requires -- across several samples, on
-    # both a large-face portrait and a deliberately busy scene (crowded night
-    # market, small faces, dense signage, falling snow), seeds 4242/1111 plus
-    # three more: 12 steps is indistinguishable from the shipped 20. Detail
-    # density means 1543 against 1511, where the spread BETWEEN SEEDS at one
-    # setting is 1137-1856 -- i.e. the metric cannot separate them and was
-    # never asked to. By eye at its worst seed, 12 still resolves signage
-    # strokes, individual stall goods, wet cobbles and coherent small figures.
-    #
-    # 16 is the conservative option at 46.5s (11.2s saved) and scores denser
-    # (1828); it buys nothing visible on a stage whose whole job is to be
-    # chosen from, but it is the place to go if a scene ever looks thin.
-    #
-    # DO NOT try DPM++ 2M Karras here. It returns PURE NOISE on this
-    # checkpoint at both 12 and 16 steps -- a lavender speckle field with no
-    # subject, reported as a success. models.yaml recorded that failure on
-    # BAS+ below and the natural reading was that it belonged to the baked-in
-    # Turbo LoRA at CFG 1; it does not. It belongs to the Anima/Cosmos base,
-    # and a normal CFG 4.5 model on it fails exactly the same way.
-    #
-    # The 768 resolution is unchanged and still measured: 1024 was tried at 14
-    # and 24 steps (81s and 152s) and neither face beat 768. That is the
-    # opposite of BAS+ below, so do not generalise either result across the
-    # Cosmos models -- they disagree.
-    # 640, not 768: 35.5s -> 23.4s on the second-slowest draft here. Accepted
-    # on the Faithful (docs/decisions/DRAFT-STEPS.md): brightness 190.6/176.8
-    # from the 640 draft against 195.1/175.3 from the 768 one, and both come
-    # back clean. Like the two Anima models it tolerates a smaller frame; the
-    # Illustrious checkpoints do not, which is the split recorded in the doc.
-    #
-    # Re-checked at 1:1 on 19 September 2026, because "clean" above had been
-    # brightness and a contact sheet, and a Faithful over a 640 draft of a
-    # near-black 3:2 scene had lost the draft's crown lace to a blur
-    # (DRAFT-STEPS.md, "Shaped Faithfuls"). Swept 640 / 768 / 1024 on the two
-    # standard scenes with the 48-step Faithful read at 1:1 (research/
-    # draft-size/lustrousmix-anima/, RUNS.md): all three are crisp -- lashes,
-    # freckles, pearls, watch numerals on the portrait; sign strokes and eyes
-    # on the market -- and 640 is not behind 1024. 640 held on that reading;
-    # the queen frame stays on record as the one dark-scene counter-example.
-    # 768 anyway: the floor for every draft's long side (tests/
-    # test_registry.py), so a square draft here matches the shaped ones.
-    # +12s a draft.
+    # 768, the floor for every draft's long side (tests/test_registry.py).
+    # 640, 768 and 1024 all come back crisp through the 48-step Faithful at
+    # 1:1 -- lashes, freckles, pearls, watch numerals; sign strokes and eyes
+    # (research/draft-size/lustrousmix-anima/, RUNS.md). A Faithful over a 640
+    # draft of a near-black 3:2 scene lost the draft's crown lace to a blur
+    # (DRAFT-STEPS.md, "Shaped Faithfuls").
     draft: { size: 768, steps: 12, cfg: 4.5, sampler: "UniPC Trailing" }
-    # Left at 1536/24 after measuring, i.e. this is now a checked value rather
-    # than an inherited one. The final was suspected of the same softness as
-    # the draft and is not: at 1536/24 the face is clean and correctly formed.
-    # 30 steps costs 422s -> 548s and buys nothing (355 -> 366, indistinguishable
-    # on a face crop), DDIM Trailing at 30 is no better (352), and 1280 is
-    # worse rather than better. Note this stage is a fresh txt2img, not img2img
-    # over the draft -- only Faithful/Upscale/Detail/Edit take that path (see
-    # app/main.py) -- so the draft fix above does not carry into it, which is
-    # why it was measured separately.
-    #
-    # 24 kept, but checked rather than inherited. Swept at 16 / 24 / 40 on two
-    # crowded scenes (docs/decisions/FINAL-STEPS.md; frames in
-    # research/final-steps/): 24 is clearly better than 16, and **40 is better
-    # again, though the difference is much less obvious**. 24 is a deliberate
-    # stop at the knee, not a ceiling -- this model keeps improving past it, and
-    # 40 costs 623s against 370s for that last increment.
-    #
-    # Note what that does to the sentence above. "30 steps buys nothing
-    # (indistinguishable on a face crop)" was a crop at a neighbouring rung; on
-    # whole frames the schedule is still buying something at 40. Not a direct
-    # contradiction -- 30 and 40 are different cells -- but the same shape of
-    # doubt that the bas-anima crop turned out to carry.
+    # 24 steps, a stop at the knee rather than a ceiling: swept at 16 / 24 / 40
+    # on two crowded scenes (docs/decisions/FINAL-STEPS.md; frames in
+    # research/final-steps/), 24 is clearly better than 16, and 40 is better
+    # again though much less obviously, at 623s against 370s. 1280 is worse
+    # than 1536. This stage is a fresh txt2img, not img2img over the draft --
+    # only Faithful/Upscale/Detail/Edit take that path (app/main.py) -- so
+    # the draft's settings do not carry into it.
     final: { size: 1536, steps: 24, strength: 0.5 }
     # The Anima Turbo LoRA (Civitai 2560840, v0.2; the one BAS+ has baked in),
     # imported into Draw Things by hand. Final at 8 steps and CFG 1 measured
-    # against the shipped 24 at CFG 4.5 on both final-steps scenes, seed 1111
+    # against 24 at CFG 4.5 on both final-steps scenes, seed 1111
     # (research/final-steps/lustrousmix-anima/, SHEET__turbo_compare.png):
     # ~67s against ~375s, nothing broken -- hands, glasses, lace and lettering
     # clean, more of the prompt drawn -- but a different picture: warmer,
@@ -550,14 +430,13 @@ models:
     # does not bring the look back, it goes muddy and low-contrast; the
     # weight is not a style dial. CFG 1 also means no negative prompt.
     #
-    # Drafts go to 1024 with it, not the shipped 640, and that is the draft's
-    # job as an init rather than as a preview: research/draft-size/ (both
-    # Anima models, SHEET__turbo_drafts.png). A 640 turbo draft looks fine at
-    # 11s, but the Faithful over it came back soft at 1:1 -- hair and eyes
-    # smeared, as if upscaled -- where the one over a 1024 draft (26s) has
-    # lashes, freckles and the glasses' metal. Laplacian 14-17 against 64-80,
-    # all four cells. A 16-step CFG 1 pass at 0.5 cannot put back what the
-    # draft lacked. The same size BAS+ (this LoRA baked in) ended up at.
+    # Drafts go to 1024 with it, as the draft's job as an init rather than as
+    # a preview: research/draft-size/ (both Anima models,
+    # SHEET__turbo_drafts.png). A 640 turbo draft looks fine at 11s, but the
+    # Faithful over it comes back soft at 1:1 -- hair and eyes smeared, as if
+    # upscaled -- where the one over a 1024 draft (26s) has lashes, freckles
+    # and the glasses' metal. A 16-step CFG 1 pass at 0.5 cannot put back
+    # what the draft lacked. The same size BAS+ (this LoRA baked in) uses.
     #
     # "anime coloring" rides with it, as the LoRA's page asks and as BAS+'s
     # opener already carries (research/anima-turbo/SHEET__anime_coloring.png,
@@ -566,13 +445,12 @@ models:
     # the turbo alone went semi-real -- but not its colour, which stays the
     # LoRA's warm, dark palette.
     #
-    # prompt_budget holds with it, checked because BAS+ (this LoRA baked in)
-    # was the tightest model measured: the add_model ladder at the turbo
-    # recipe, two seeds (research/anima-turbo/budget.json, SHEET__budget.png)
-    # scores full 260 / fading 800 -- the subject falls after ~270 chars as
-    # it does at CFG 4.5, and the end-of-prompt marker is still there at 821.
-    # So the shipped 240/600 stays, for both states of the tick; BAS+'s short
-    # reach is that checkpoint's, not the LoRA's.
+    # prompt_budget holds with it: the add_model ladder at the turbo recipe,
+    # two seeds (research/anima-turbo/budget.json, SHEET__budget.png) scores
+    # full 260 / fading 800 -- the subject falls after ~270 chars as it does
+    # at CFG 4.5, and the end-of-prompt marker is still there at 821. So
+    # 240/600 serves both states of the tick; BAS+'s short reach is that
+    # checkpoint's, not the LoRA's.
     lora_options:
       - key: turbo
         label: "Anima Turbo (8 steps)"
@@ -602,31 +480,16 @@ models:
     dt_filename: "krea_2_turbo_i8x.ckpt"   # official DT build, 8-bit S
     # Krea 2 Turbo, civitai.com/models/2732656 (Civitai official), version
     # v1.0. Searching "Krea 2 Turbo" does not surface it -- community
-    # re-uploads rank above it -- so it was nearly credited to one of those.
+    # re-uploads rank above it.
     civitai_version_id: 3072332
     # 12B DiT, distilled: official settings are 8 steps at CFG 1.
     # Qwen3-VL text encoder: natural language prose, no negative prompts.
     #
-    # Euler A Trailing (Draw Things' own recommendation for this checkpoint,
-    # sampler 10 in its catalogue), and NOT null. null did not mean "use the
-    # model's default": it meant `sampler_name` was left out of the request,
-    # and Draw Things then applies whatever sampler is selected in its UI --
-    # the same trap as `loras` and `upscaler`, documented in app/dt_client.py.
-    # A sampler-less request is not reproducible; it renders with whatever the
-    # app was last left on.
-    #
-    # It failed exactly that way. Drafts of 22 Aug are clean; every draft of a
-    # 28 Aug batch came back as rainbow speckle with no subject in it, same
-    # 512/8 cell, config untouched in between. What changed was outside this
-    # entry: the three SDXL models below moved from Euler a to DPM++ 2M Karras
-    # that afternoon, so the sampler left standing in the app stopped being one
-    # a distilled flow model at CFG 1 can use. Reproduced on a different prompt
-    # and seed (512/8, seed 4242: noise), and the identical cell with this
-    # sampler sent explicitly is a clean photograph -- 87s against 136s, which
-    # is the real cost of the fix.
-    #
-    # So the 512 draft was never the problem, and do not "fix" this by raising
-    # the draft size: a 1024 render with no sampler_name is noise too.
+    # Euler A Trailing, Draw Things' own recommendation for this checkpoint
+    # (sampler 10 in its catalogue). Without an explicit sampler this model
+    # renders rainbow speckle with no subject whenever Draw Things' UI is left
+    # on an SDXL sampler such as DPM++ 2M Karras, at any size
+    # (docs/decisions/MODEL-MEASUREMENTS.md).
     sampler: "Euler A Trailing"
     cfg: 1.0
     uses_negative_prompt: false
@@ -640,39 +503,27 @@ models:
     # Measured: marker present at every length tested but visibly smaller from
     # 592 characters on, and the subject is small by 860.
     prompt_budget: { full: 350, fading: 700 }
-    # 512, accepted on the Faithful it produces (DRAFT-STEPS.md), which is the
-    # test the other two distilled models here failed: at 1:1 the Faithful over
-    # a 512 draft has a crisp iris, freckles and watch numerals, and the one
-    # over a 768 draft is a different picture, not a sharper one
-    # (research/draft-size/krea2-turbo, seed 1111, both scenes). 2x to a 1024
-    # final is what this model has to enlarge; klein at the same 2x needed the
-    # bigger draft, Z-Image at 3x badly, so the ratio does not predict it.
-    # 37s a draft against 57s at 768; the Faithful is 144s either way.
-    # 768 anyway: the floor for every draft's long side (tests/
-    # test_registry.py). At 512 this model's 16:9 draft was 704x384, a 2.7x
-    # jump to its 1344x768 final. +20s a draft.
+    # 768, the floor for every draft's long side (tests/test_registry.py),
+    # 57s a draft. The Faithful over a 512 draft is crisp too -- iris,
+    # freckles, watch numerals at 1:1 (research/draft-size/krea2-turbo) --
+    # so the size here is about the shapes, not sharpness: a 512 budget puts
+    # 16:9 at 704x384, a 2.7x jump to the 1344x768 final.
     draft: { size: 768, steps: 8 }
-    # 12 steps, half again what Draw Things recommends. Its catalogue note says
-    # "Use 8 sampling steps with CFG 1", and this entry followed that until the
-    # frames were looked at (docs/decisions/FINAL-STEPS.md; cells in
-    # research/final-steps/krea2-turbo, and one row committed under
+    # 12 steps, half again what Draw Things recommends ("Use 8 sampling steps
+    # with CFG 1"). Swept on whole frames (docs/decisions/FINAL-STEPS.md;
+    # cells in research/final-steps/krea2-turbo, and one row committed under
     # research/demo/): 4 is soft, 8 still carries visible noise when you zoom
-    # in, 12 is where the noise clears, and 16 is sharper again. 12 is the
-    # settled value -- the rung that fixes the defect, with 16's extra detail
-    # judged not worth a further 30% of the render.
+    # in, 12 is where the noise clears, and 16 is sharper again. 12 fixes the
+    # defect; 16's extra detail is not worth a further 30% of the render.
+    # A distilled model's published step count is a speed setting, not a
+    # quality one. Do not "correct" this to the catalogue value.
     #
-    # So a distilled model's published step count is a speed setting, not a
-    # quality one -- the same lesson the klein and schnell rows carry from the
-    # other direction, where DT recommends FEWER steps than this app ships.
-    # Do not "correct" this back to the catalogue value.
-    #
-    # Costs 94s -> 140s at 1024 (16 would be 182s). cfg stays 1: nothing here
-    # disputes that half of the recommendation.
+    # 140s at 1024 (8 steps: 94s, 16 steps: 182s). cfg stays 1.
     final: { size: 1024, steps: 12, strength: 0.5 }
-    # Same untiled ceiling as the Cosmos 2B models below, at the same 1536,
-    # despite sharing none of their architecture -- which is what gave away
-    # that this is Draw Things' denoiser rather than any model's competence.
-    # tiled_diffusion clears it: 2048 at 0.996 correlation with the source.
+    # Same untiled ceiling as the Cosmos 2B models, at the same 1536, despite
+    # sharing none of their architecture -- so this is Draw Things' denoiser
+    # rather than any model's competence. tiled_diffusion clears it: 2048 at
+    # 0.996 correlation with the source.
     upscale: { size: 2048, steps: 6, strength: 0.3 }
     tiled_diffusion: true
     upscale_seconds: 270
@@ -681,9 +532,8 @@ models:
     label: "BAS+ Anima"
     # Below the 1536 final: 16:9 at that budget (2048x1152, seed 1111, 4
     # steps, research/aspect/bas-anima) draws two girls, one grid step down
-    # (1984x1088) draws one. Same line as z-image-turbo, found the same way.
-    # The earlier seed-4242 portrait readings came from a sick Draw Things
-    # session and say nothing (docs/decisions/SHAPES.md).
+    # (1984x1088) draws one. Same line as z-image-turbo, found the same way
+    # (docs/decisions/SHAPES.md).
     aspect_size: 1472
     dt_filename: "basbetteranimestyleplusanima_basev10_f16.ckpt"
     # BAS+ Better Anime Style Plus (Anima base v1.0).
@@ -719,56 +569,24 @@ models:
     # end-of-prompt marker is gone entirely by 860. Its Turbo LoRA runs at CFG
     # 1, where there is no guidance to hold a long prompt together.
     prompt_budget: { full: 240, fading: 450 }
-    # 1024, not the 768 this shipped with, and the step count deliberately left
-    # at 8. At 768 this was the worst draft here: flat lavender irises with no
-    # pupil, and -- the giveaway -- a cherry-blossom mass rendered as an 8px
-    # latent staircase, amorphous pink blocks with no branch inside them. It is
-    # the same shortfall an Illustrious model here had at 512, one size up: the model is
-    # being run below what it can resolve. 1024 fixes the structure (branches
-    # and blossom clusters appear) for 14.5s -> 25s, still the cheapest draft
-    # of any anime model here.
+    # 768 at 8 steps, 13s. Measured at 1024/768/640/512 on two scenes and two
+    # seeds: this model composes cleanly at every one of them -- single
+    # subject, correct anatomy, readable stalls -- and the Faithful from a 768
+    # draft matches the one from a 1024 draft, faces indistinguishable
+    # (docs/decisions/DRAFT-STEPS.md). 640 is clean too, at 8.5s; 768 is the
+    # size every other model drafts at.
     #
-    # Steps stay at 8 on purpose, and this is the part worth not re-deriving.
-    # More steps DO help at 768 (269 -> 352 -> 415 -> 452 at 8/12/16/20), so a
-    # step sweep alone looks like the answer and is the more expensive half of
-    # a trade: 768/20 costs 30s and still has softer branch linework than
-    # 1024/8 at 25s. Against that, this checkpoint has the Anima Turbo LoRA
-    # baked in and runs at CFG 1, and MODEL-MEASUREMENTS.md records that a
-    # distilled few-step recipe is the fragile thing on a model like this
-    # (DPM++ 2M Karras renders pure noise here). Resolution buys more and
-    # touches nothing the distillation depends on. Do not read this as "steps
-    # do not matter on Cosmos" -- lustrousmix-anima above wants the opposite
-    # lever, and 1024/12 measured better than both (36s) if the budget is ever
-    # there.
-    #
-    # A caution on scoring it: Laplacian variance CANNOT be compared across
-    # sizes -- the same scene at 1024 reads lower per pixel than at 768 -- so
-    # 1024/8 scoring 304 against 768/20's 452 says nothing. Every call here was
-    # made on a 1:1 crop of the face and of the blossom mass.
-    # 768, not the 1024 this shipped with: 23.8s -> 13.1s, the largest single
-    # saving found in either sweep, and the entry never said what the 1024 was
-    # for. Measured at 1024/768/640/512 on two scenes and two seeds: this model
-    # composes cleanly at every one of them -- single subject, correct anatomy,
-    # readable stalls -- so the extra pixels were not buying structure. The
-    # Faithful agrees (docs/decisions/DRAFT-STEPS.md): brightness 154.0/173.1
-    # from the 768 draft against 163.2/172.6 from the 1024, and the faces are
-    # indistinguishable. 640 is clean too, at 8.5s; 768 is taken instead
-    # because it is the size every other model here drafts at and the extra
-    # 4.6s is not worth being the one exception.
+    # Steps stay at 8: the checkpoint has the Anima Turbo LoRA baked in and
+    # runs at CFG 1, and a distilled few-step recipe is the fragile thing on
+    # a model like this (DPM++ 2M Karras renders pure noise here;
+    # docs/decisions/MODEL-MEASUREMENTS.md). Laplacian variance cannot be
+    # compared across sizes; judge a size change on a 1:1 crop.
     draft: { size: 768, steps: 8 }
-    # 24 steps, not the 8 this shipped with, and the reversal is the useful
-    # part. The old note said the final was "checked at 1536/8, 1536/12,
-    # 1280/8 and 1024/8" and that there was "nothing the extra steps repair".
-    # That call was made on a face crop of one scene. Re-run as whole frames on
-    # two crowded scenes and two seeds (8/16/24/32, kept in
-    # data/sweeps/final-steps/bas-anima, sheets and viewer.html beside them),
-    # the verdict by eye was the opposite: 8 is bad, 16 acceptable, 32 better.
-    # 24 is where it lands -- the knee, not the top of the ladder.
-    #
-    # Costs about 3x what 8 did (66s -> ~190s at 1536). Deliberate: a final is
-    # rendered once and looked at for a long time. The draft stage (768/8) and
-    # the upscale stage (2048/8) are separately measured and are NOT implicated
-    # by this -- do not scale them to match.
+    # 24 steps, the knee rather than the top of the ladder: on whole frames,
+    # two crowded scenes and two seeds (8 / 16 / 24 / 32), 8 is bad, 16
+    # acceptable, 32 better (docs/decisions/FINAL-STEPS.md). About 190s at
+    # 1536. The draft stage (768/8) and the upscale stage (2048/8) are
+    # measured separately -- do not scale them to match.
     final: { size: 1536, steps: 24, strength: 0.5 }
     # Same untiled 1536 ceiling as the other Cosmos 2B models; cleared by
     # tiled_diffusion, which gets 2048 at 0.996 correlation with the source.
@@ -782,9 +600,7 @@ models:
     # Equal to the final size below, which already keeps 16:9 to a 1856 long
     # edge (1856x1088): probed there at seed 1111, 6 steps, one figure
     # (research/aspect/cyberrealistic-anima). 2048 is where the other two
-    # Anima checkpoints and z-image-turbo double. The earlier seed-4242
-    # portrait readings came from a sick Draw Things session and say nothing
-    # (docs/decisions/SHAPES.md).
+    # Anima checkpoints and z-image-turbo double (docs/decisions/SHAPES.md).
     aspect_size: 1408
     dt_filename: "cyberrealisticanima_v60aestheticv11_f16.ckpt"
     # CyberRealistic Anima v6.0.
@@ -827,77 +643,42 @@ models:
     # collapse right after 236, and nothing suggests this one differs. If it
     # matters, score this model's curve rather than inheriting the family's.
     prompt_budget: { full: 240, fading: 700 }
-    # 20 steps, and this one does NOT come down -- the only model swept here
-    # that could not give any of it back. Worth recording, because the draft
-    # looks fine at 10 and the cost only appears one stage later.
-    #
-    # Swept at 20/14/10/6 on two scenes and two seeds, through the app's own
-    # client. Time is nearly pure per-step work (2.93 s/step), so 10 would have
-    # been 58.6s -> 29.6s, the biggest saving available on any draft here, and
-    # composition is *identical* at 20, 14 and 10: same pose, framing, stall
-    # layout and lantern placement at both seeds. Judged as a preview it passes
-    # easily; 6 is the only visible cliff (Euler a has not converged, both
-    # seeds a flat blur at Laplacian 2).
-    #
-    # But **this model darkens as steps come off** -- monotonically, on both
-    # scenes, and it is exposure rather than structure so the preview still
-    # reads correctly. Draft brightness on the portrait: 148/130 at 20 steps,
-    # 113/88 at 14, 72/67 at 10. A draft is also the init for Faithful at
-    # strength 0.5, and exposure is exactly the low-frequency property img2img
-    # preserves, so the drift survives into the finished picture rather than
-    # being redrawn out of it. Faithful brightness, same seeds:
+    # 20 steps, and do NOT lower them: this model darkens as steps come off.
+    # Composition is identical at 20, 14 and 10, so the draft looks fine as a
+    # preview, but brightness drops monotonically (portrait 148/130 at 20,
+    # 113/88 at 14, 72/67 at 10), and a draft is the init for Faithful at
+    # strength 0.5, which preserves exposure. Faithful brightness, same seeds:
     #
     #     from 20-step draft   145 / 126     (the reference)
     #     from 14-step draft   109 /  84     -25% / -33%
     #     from 10-step draft    68 /  63     -53% / -50%
     #
-    # A 30% cheaper draft that costs a third of the exposure of every Faithful
-    # taken from it is not a saving, so both candidates are rejected and this
-    # stays where it shipped. Neither SDXL model below drifts at all, so this
-    # is Euler a under-converging on this checkpoint and not a general property
-    # of thin drafts -- do not read the numbers above across models.
-    # 640, not 768: 58.0s -> 38.4s, the saving this model does have. Its step
-    # count could not come down at all (see the long note above), so size is
-    # where its cost was hiding -- and unlike steps, shrinking the frame does
-    # not darken it. Accepted on the Faithful, as everything here is
-    # (docs/decisions/DRAFT-STEPS.md): brightness 154.5/123.9 from the 640
-    # draft against 144.5/125.7 from the 768 one -- one seed up, one down, i.e.
-    # no drift, and the faces are clean at both. 512 was not taken: it is a
-    # further 37% but nothing in this sweep tested it through a Faithful.
-    # 768 anyway: the floor for every draft's long side (tests/
-    # test_registry.py), and 640 was accepted on brightness, never read at
-    # 1:1 through a Faithful. +20s a draft.
+    # Euler a under-converging on this checkpoint, not a property of thin
+    # drafts in general -- the SDXL models do not drift
+    # (docs/decisions/DRAFT-STEPS.md).
+    #
+    # 768, the floor for every draft's long side (tests/test_registry.py).
+    # Shrinking the frame does not darken it the way cutting steps does.
     draft: { size: 768, steps: 20, cfg: 5.0 }
-    # 30 steps, not the 44 this shipped with. Swept at 30 / 44 / 60, two scenes
+    # 30 steps: swept at 30 / 44 / 60, two scenes
     # (docs/decisions/FINAL-STEPS.md; frames in research/final-steps/). 30 is
-    # somewhat softer than 44 or 60 and -- the part that decided it -- no less
-    # realistic for being softer.
+    # somewhat softer than 44 or 60 and no less realistic for being softer.
+    # 44 is the alternative for a sharper frame (610s against 395s); 60 is not
+    # worth it. At 30 the Faithful asks 60 steps, inside its cap of 64.
     #
-    # The finding that matters is not about the step count. This model, or
-    # something in the processing, leaves a STRUCTURE visible on every picture
-    # it makes, at every rung. It is not a thin schedule: more steps make it
-    # MORE visible, not less, so it is the one thing here that steps actively
-    # worsen. Nothing on this ladder removes it.
-    #
-    # A LoRA was the first idea. The better lead is that qwen-image shows what
-    # looks like the same pattern at every one of its rungs too, and every model
-    # anyone has seen it on runs the Qwen VAE -- see the shared-autoencoder note
-    # in docs/decisions/FINAL-STEPS.md. If that holds it is neither this
-    # checkpoint nor its schedule, and a LoRA on the checkpoint would not touch
-    # it.
-    #
-    # 44 is a reasonable alternative if a sharper frame is wanted -- 610s
-    # against 395s -- and 60 is not worth it. 30 also brings the model back
-    # inside the Faithful cap: at 44 it wanted 88 steps against a limit of 64
-    # and was the only model that could not reach parity; at 30 it asks 60.
+    # A STRUCTURE is visible on every picture this model makes, at every rung,
+    # and more steps make it MORE visible. qwen-image shows what looks like the
+    # same pattern, and every model it has been seen on runs the Qwen VAE --
+    # see the shared-autoencoder note in docs/decisions/FINAL-STEPS.md. If that
+    # holds it is neither this checkpoint nor its schedule.
     final: { size: 1408, steps: 30, strength: 0.5 }   # ~2MP optimum ceiling
     # The Anima Turbo LoRA, as on lustrousmix-anima. Final at 8 steps and CFG
-    # 1 against the shipped 30 at CFG 5.5, both final-steps scenes, seed 1111
+    # 1 against 30 at CFG 5.5, both final-steps scenes, seed 1111
     # (research/final-steps/cyberrealistic-anima/SHEET__turbo_compare.png):
     # ~55s against ~395s, and it stays itself -- realistic faces, clean lace,
     # watch, apron and chopsticks. Darker and less saturated: red hair came
     # back brown, the neon duller. Drafts at 1024 for the reason given on
-    # lustrousmix-anima: the Faithful over a 640 turbo draft came back soft.
+    # lustrousmix-anima: the Faithful over a 640 turbo draft comes back soft.
     lora_options:
       - key: turbo
         label: "Anima Turbo (8 steps)"
@@ -909,8 +690,6 @@ models:
           final: { steps: 8, cfg: 1.0 }
     # Same untiled 1536 ceiling as the other Cosmos 2B models; cleared by
     # tiled_diffusion, which gets 2048 at 0.996 correlation with the source.
-    # It does not crash Draw Things -- an earlier run that did had five other
-    # models resident, and that was the real cause.
     upscale: { size: 2048, steps: 24, strength: 0.3 }
     tiled_diffusion: true
     upscale_seconds: 213
@@ -933,24 +712,17 @@ models:
     cfg: 5.0
     uses_negative_prompt: true
     prompt_style: prose
-    # This entry used to carry "STRICT LIMIT: 40 words" on the grounds that a
-    # CLIP encoder "ignores everything past ~75 tokens". Measured, it does not:
-    # a marker sentence at the end of an 860-character prompt rendered at full
-    # size, because Draw Things chunks the prompt into 75-token windows and
-    # encodes all of them. The limit was costing this model three quarters of
-    # its usable prompt for nothing. Length now comes from prompt_budget above;
-    # what is left here is the ordering advice, which still holds.
+    # Ordering advice only; length comes from prompt_budget below.
     prompt_guidance: |
       Subject and appearance first, then setting, then lighting, then
       photographic language (camera body, lens and aperture, film stock,
       e.g. "85mm f/1.8, Portra 400"). Comma-separated keyword phrases are
       preferred over full sentences.
-    # Measured, and the roomiest here -- which was the surprise. Its dual CLIP
-    # encoder has the SHORTEST context of anything shipped, yet the marker
-    # rendered at full size at every length up to 860 characters: Draw Things
-    # chunks a long prompt into 75-token windows and encodes all of them, so
-    # the tail is not dropped. `fading` is where the measurement stopped, not a
-    # cliff anybody found.
+    # Measured, and the roomiest here. Its dual CLIP encoder has the SHORTEST
+    # context of anything shipped, yet the marker rendered at full size at
+    # every length up to 860 characters: Draw Things chunks a long prompt into
+    # 75-token windows and encodes all of them, so the tail is not dropped.
+    # `fading` is where the measurement stopped, not a cliff anybody found.
     prompt_budget: { full: 600, fading: 900 }
     # The bare checkpoint at 14 steps -- the rung three of the four SDXL
     # checkpoints in DRAFT-STEPS.md settled on, and 14 and 20 are the same
@@ -958,33 +730,18 @@ models:
     # seed 1111, both scenes; Faithful brightness 64.1 / 64.1 and 87.9 / 87.1).
     # 18.5s a draft against 25s at 20.
     #
-    # This used to be a DMD2 draft: the 4-step LoRA at weight 0.6, 12 steps,
-    # cfg 3.5, Euler a, kept on the draft after DMD2 was rejected on every
-    # SDXL final (it replaces the checkpoint's look with a high-contrast
-    # ink-outline poster; docs/decisions/FINAL-STEPS.md) on the reasoning that
-    # a draft is judged on composition, where the look does not matter. That
-    # reasoning was wrong about what a draft is for. A Faithful is img2img at
-    # 0.5 over the draft, and the DMD2 cast rides straight through it: the
-    # plain 32-real-step Faithful over a DMD2 draft is the teal-and-red poster
-    # at 1024, while the Faithful over a plain draft of the same seed is the
-    # photograph the checkpoint draws on its own. Exactly what the Illustrious
-    # DMD2 trial saw ("warms the Faithful over it"). And the LoRA saved
-    # nothing: the DMD2 draft took 20.3s, this one 18.5s.
-    # research/draft-size/juggernaut_plain.py rendered the plain arm.
+    # No DMD2 LoRA on the draft: a Faithful is img2img at 0.5 over the draft,
+    # and DMD2's high-contrast ink-outline poster look rides straight through
+    # it, where a plain draft gives the photograph the checkpoint draws on its
+    # own. It saves nothing either (20.3s against 18.5s). docs/decisions/
+    # FINAL-STEPS.md and DRAFT-STEPS.md.
     draft: { size: 768, steps: 14 }
-    # 32 steps, i.e. left where it shipped -- but now looked at rather than
-    # inherited. Swept at 20 / 32 / 48, two scenes
-    # (docs/decisions/FINAL-STEPS.md; frames in research/final-steps/).
-    #
-    # Two separate things are true here and it took a reversal to keep them
-    # apart. This checkpoint is not good at some anatomic detail, and that is
-    # wrong at 48 exactly as at 20 -- its own limitation, not a thin schedule,
-    # so no step count buys it back. AND minor detail elsewhere in the frame is
-    # better at 32 than at 20. The first fact does not license the low rung:
-    # "the defect is constant" is not "nothing improves", and the second
-    # question has to be asked separately.
-    #
-    # 48 is not taken: nothing was seen that 32 does not already have.
+    # 32 steps: swept at 20 / 32 / 48, two scenes
+    # (docs/decisions/FINAL-STEPS.md; frames in research/final-steps/). Some
+    # anatomic detail is wrong at 48 exactly as at 20 -- the checkpoint's own
+    # limitation, which no step count buys back -- while minor detail
+    # elsewhere in the frame is better at 32 than at 20. 48 adds nothing
+    # visible over 32.
     final: { size: 1024, steps: 32, strength: 0.5 }
     # 2048 measured clean and quick (82s, corr 0.99 against the source): SDXL
     # has none of the 2.4MP trouble the Cosmos and Krea models hit, so this
@@ -997,28 +754,6 @@ models:
     # already short of RAM, so the flag is not proven guilty -- but there is
     # nothing to gain by finding out)
     upscale_seconds: 84
-
-  # ideogram-4 (Ideogram 4) was REMOVED, not hidden. It rendered text inside a
-  # picture better than anything else here -- asked for a shop sign reading
-  # "OPEN TODAY" over "poetry upstairs" it was the only model that got both
-  # lines right -- but it runs its output through a safety filter that blocks
-  # renders unpredictably, and a blocked render is not an error: a valid
-  # 1024px PNG at HTTP 200, a grey card captioned "Image blocked by safety
-  # filter", delivered after the full render time was paid. At about a quarter
-  # of an hour per render, that is an expensive way to be told nothing, and
-  # nothing in the app detects it: the grey card is stored as a successful
-  # generation and lands in the grid looking like a finished draft.
-  #
-  # The filter false-positives freely and cannot be prompted around: it
-  # blocked "A girl in a red coat stands on a gravel path in a park" and the
-  # same sentence with "A woman", while passing a woman on a stone pier.
-  # z-image-turbo rendered every blocked prompt without complaint, so the
-  # filter is Ideogram's, not Draw Things'.
-  #
-  # The measurements and the full block/pass lists are kept:
-  # docs/decisions/FALSE-SUCCESS.md and docs/decisions/PROMPT-LENGTH.md.
-  # To put it back, recover the entry from git history (it was removed in the
-  # commit that added this note) -- everything in it was measured.
 
   qwen-image:
     label: "Qwen Image 2512"
@@ -1056,20 +791,19 @@ models:
     # balloon marker is small but unmistakable. `fading` is where the ladder
     # stopped rather than a cliff anybody found.
     prompt_budget: { full: 400, fading: 800 }
-    # 864, below the 1024 final, because of the step ceiling below. Checked
-    # again at the turbo recipe (research/aspect/qwen-image/*__turbo.png,
-    # seeds 1111 and 2222): 14 of 14 returned, 13 with one figure; 4:3 at
-    # 1111 drew two women. At a 1536 budget with turbo, 8 of 14 came back
-    # empty -- see the option's note. At a 1024
+    # 864, below the 1024 final, because of the step ceiling below. At a 1024
     # budget 3:4 and 4:3 (896x1152, 1152x896) render correctly against square
     # controls at the same prompt and seeds -- but 16:9 is 1344x768, over the
     # ceiling, and came back empty at one seed of two. 864 is the largest
     # budget whose widest shape keeps a 1152 long edge (16:9 is 1152x640, 3:2
     # 1088x704, 4:3 1024x768), and 1152x12 is a row that rendered three times
-    # out of three. MEASURED at 864 on every ratio (seed 1111) and on 16:9 and
-    # 9:16 again at 2222: 8 of 8 returned an image, one figure each, 144-156s
-    # (research/aspect/). Square keeps 1024; the 768 draft is under the budget.
-    # Raising final.steps from the gear lowers the ceiling for shapes first.
+    # out of three. Measured at 864 on every ratio (seed 1111) and on 16:9 and
+    # 9:16 at 2222: 8 of 8 returned an image, one figure each, 144-156s
+    # (research/aspect/). With the turbo recipe (research/aspect/qwen-image/
+    # *__turbo.png, seeds 1111 and 2222): 14 of 14 returned, 13 with one
+    # figure; 4:3 at 1111 drew two women. Square keeps 1024; the 768 draft is
+    # under the budget. Raising final.steps from the gear lowers the ceiling
+    # for shapes first.
     aspect_size: 864
     # ...and it is a ceiling, not a composition budget: the frames above it
     # come back EMPTY, so a Faithful keeps to it as well, where the SDXL
@@ -1077,78 +811,59 @@ models:
     # app only tiles at 2048 and up, so tiled_diffusion below does not lift it.
     aspect_size_is_ceiling: true
     #
-    # THE STEP CEILING, and it is the whole story of this entry. Above a
-    # certain amount of work per request Draw Things runs the render to
-    # completion and then answers 200 with an empty `images` list -- the same
-    # response a stalled session gives, which is what made this hard to read.
-    # It is not a stalled session: every cell below was bracketed by a 256px
-    # control render on another model, and all of those came back in 3-20s.
-    # Sizes are long edge x steps.
+    # THE STEP CEILING. Above a certain amount of work per request Draw Things
+    # runs the render to completion and then answers 200 with an empty
+    # `images` list -- the same response a stalled session gives. It is not a
+    # stalled session: every cell below was bracketed by a 256px control
+    # render on another model, and all of those came back in 3-20s. Sizes are
+    # long edge x steps.
     #
     #   1024 x 12   209s, 203s + 12 more   image   <- what this entry ships
     #   1152 x 12   241s, 270s, 279s       image   (the 3:4 and 4:3 shapes)
     #   1344 x 12   195s EMPTY / 255s image        <- flaky, both seeds shown
-    #   1024 x 16   280s, 278s             EMPTY   <- DID NOT REPRODUCE, see below
+    #   1024 x 16   280s, 278s EMPTY; 273s, 278s image on a re-check
     #   1024 x 20   323s                   EMPTY
     #   1024 x 30   479s                   EMPTY   <- DT's own recommendation
     #    768 x 12   128s                   image   <- what the draft ships
     #    768 x 20   175s, 205s             EMPTY
     #    512 x 20   110s                   image
     #
-    # RE-CHECKED 5 September 2026 and the 1024x16 row above did not reproduce:
-    # both scenes rendered clean, 273s and 278s, correct size, nothing flat.
-    # 1024x16 is 16384 on the long-edge x steps measure, i.e. past the ~15300
-    # the threshold below predicts should usually fail. So either the threshold
-    # moved under a Draw Things update, or that cell was read in one of the
-    # degraded sessions docs/decisions/FALSE-SUCCESS.md documents -- which is
-    # exactly the failure mode that has already invalidated one whole batch of
-    # measurements here. The table is kept as it was recorded; treat the
-    # threshold as unproven rather than as a rule, and re-check before relying
-    # on it.
-    #
     # It is not a timeout: 768x20 failed at 175s while 1024x12 succeeded at
     # 209s. It is not pixel count: 896x1152 and 1344x768 are the same area at
-    # the same step count and behave differently. What fits every row is
+    # the same step count and behave differently. What fits most rows is
     # roughly long-edge x steps, with everything at or under ~13800 returning
-    # an image and everything at or above ~15300 usually not. But 1344x12
-    # (16128) failed at one seed and succeeded at another, so past the
-    # threshold this is unreliable rather than dead -- and the threshold is a
-    # line fitted to nine points, not a mechanism. Rely on the rows, not the
-    # formula, and do not promote a single failure here to a rule without
-    # re-running it at another seed: 1344x12 reads as a clean cliff until you
-    # do, and then it does not.
+    # an image and everything at or above ~15300 usually not -- but 1344x12
+    # (16128) and 1024x16 (16384) each went both ways, so past the threshold
+    # this is unreliable rather than dead, and the threshold is a line fitted
+    # to the rows, not a mechanism. Rely on the rows, and re-run any single
+    # failure at another seed before treating it as a rule.
     #
     # Operationally: Draw Things' recommended 30 steps DOES NOT WORK here, 12
     # works at every size tried, and any number raised in this entry has to be
     # re-measured rather than assumed.
     draft: { size: 768, steps: 12 }
-    # 12 kept, and checked at 8 / 12 / 16 on two crowded scenes
-    # (docs/decisions/FINAL-STEPS.md; frames in research/final-steps/): good at
-    # 12, better at 16 -- it was the only model in the whole sweep to render the
-    # cat's face undistorted -- so 12 is a stop at 211s against 275s, not a
-    # ceiling. Raise it if a frame is worth the extra minute.
+    # 12 steps, a stop rather than a ceiling: checked at 8 / 12 / 16 on two
+    # crowded scenes (docs/decisions/FINAL-STEPS.md; frames in
+    # research/final-steps/), good at 12, better at 16 -- the only model in the
+    # sweep to render the cat's face undistorted -- at 211s against 275s.
+    # Raise it if a frame is worth the extra minute.
     #
     # It also shows the same persistent noise pattern as some other models here,
     # present at every rung. See the shared-autoencoder note in
-    # docs/decisions/FINAL-STEPS.md: every model anyone has seen it on runs the
+    # docs/decisions/FINAL-STEPS.md: every model it has been seen on runs the
     # Qwen VAE, which would make it neither a step count nor a checkpoint.
     final: { size: 1024, steps: 12, strength: 0.5 }
     upscale: { size: 2048, steps: 8, strength: 0.3 }
-    # Measured, and the good news in this entry: 2048 comes back clean at 0.991
-    # correlation with its source in 200s, faster than the 1024 final that fed
-    # it. That is also the best evidence for what the ceiling above actually is
-    # -- a tiled 2048 pass is far more total work than the 1024x16 render that
-    # returns nothing, and the difference between them is that tiling bounds
-    # the memory. Its sibling qwen-edit needs this flag at 2048 for the same
-    # reason, and is the same size class.
+    # 2048 comes back clean at 0.991 correlation with its source, faster than
+    # the 1024 final that fed it. A tiled 2048 pass is far more total work
+    # than the 1024x16 render that can return nothing, and the difference
+    # between them is that tiling bounds the memory. Its sibling qwen-edit
+    # needs this flag at 2048 for the same reason, and is the same size class.
     tiled_diffusion: true
     upscale_seconds: 442
-    # Measured: 4096 returns an empty response after 511s, on a session whose
-    # control renders came back in 12-14s either side. tiled_diffusion is what
-    # gets this model to 2048 at all, and the Upscale picker was reading that
-    # flag as "so 3K and 4K are fine too" -- it was offering an eight-minute
-    # render that produces nothing. 3072 was not tested; the cap is the last
-    # size measured good, not a known ceiling.
+    # 4096 returns an empty response after 511s, so the 3K/4K that
+    # tiled_diffusion would otherwise offer are capped. 3072 is untested; the
+    # cap is the last size measured good (docs/decisions/UPSCALING.md).
     max_upscale_size: 2048
     # Wuli-art's Qwen-Image-2512 Turbo LoRA (Civitai 2267786, version
     # 2552570), imported by hand. Not the lightx2v Lightning LoRA in Draw
@@ -1157,48 +872,33 @@ models:
     # 1024 fails even at weight 0.3 (research/qwen-lightning/results.json).
     # This one renders every cell at weight 1.0.
     #
-    # Measured against the shipped 12 steps at CFG 4, both final-steps
-    # scenes, seed 1111 (research/qwen-turbo/, SHEET__compare.png): the same
-    # photographic look, and MORE of the prompt on the frame -- freckles, the
-    # lace weave, the loupe, the cash tin and the cat -- at 4 steps in ~50s
-    # against 211s. Not for free: skin comes out harsher, heavier freckles
-    # and harder contrast where the shipped pass is soft and natural (the
-    # distilled look), and at 4 steps small things -- the fish, the coins --
-    # are a touch softer, with the ground behind them blurrier. 8 steps
-    # brings the fish back for 85s at 1024, which at 1536 is the shipped
-    # pass's time again, so 4 is the default and the gear's step box is the
-    # dial for a picture worth 8. A 768 draft at 4 steps takes 35s (134s
-    # recorded before) and its Faithful lands on it. CFG 1, so no negative
-    # prompt.
+    # Measured against 12 steps at CFG 4, both final-steps scenes, seed 1111
+    # (research/qwen-turbo/, SHEET__compare.png): the same photographic look,
+    # and MORE of the prompt on the frame -- freckles, the lace weave, the
+    # loupe, the cash tin and the cat -- at 4 steps in ~50s against 211s. Not
+    # for free: skin comes out harsher, heavier freckles and harder contrast
+    # where the plain pass is soft and natural (the distilled look), and at 4
+    # steps small things -- the fish, the coins -- are a touch softer, with the
+    # ground behind them blurrier. 8 steps brings the fish back for 85s at
+    # 1024, so 4 is the default and the gear's step box is the dial for a
+    # picture worth 8. A 768 draft at 4 steps takes 35s and its Faithful lands
+    # on it. CFG 1, so no negative prompt.
     #
-    # The final stays at 1024, and this is the part worth not re-deriving.
-    # 1536 x 4 is far under the step ceiling and the two probe scenes
-    # rendered at 1536 in ~105s, sharper at 1:1 than 1024 -- but the aspect
-    # sweep's sunflower prompt at 1536 comes back EMPTY every time (Draw
-    # Things draws nothing), at weight 1.0 and 0.6, while 0.8 renders it.
-    # That is the lightx2v Lightning failure again, further out and not
-    # monotonic in anything, so 1536 is a coin flip per prompt and an empty
-    # reply is what the app reads as a stalled renderer. 1024 and the 864
-    # shape budget: 14 of 14 shapes, every probe cell, no empties.
+    # The final stays at 1024. 1536 x 4 is far under the step ceiling and the
+    # two probe scenes rendered at 1536 in ~105s, sharper at 1:1 than 1024 --
+    # but the aspect sweep's sunflower prompt at 1536 comes back EMPTY every
+    # time, at weight 1.0 and 0.6, while 0.8 renders it. That is the lightx2v
+    # Lightning failure again, further out and not monotonic in anything, so
+    # 1536 is a coin flip per prompt and an empty reply is what the app reads
+    # as a stalled renderer. 1024 and the 864 shape budget: 14 of 14 shapes,
+    # every probe cell, no empties.
     #
     # The upscale follows the tick too, so the tick means "this model runs
-    # with the LoRA" and not every picture has skin in it: measured on the
-    # portrait (research/qwen-turbo/upscale.json, SHEET__upscale.png), the
-    # LoRA pass at the model's 8 steps takes 252s against 442s at 0.97
-    # correlation with the enlarged init either way, and hardens the skin
-    # the same way the finals do. Untick it for a portrait worth the softer
-    # pass. Both measured times are far from the 200 that shipped as
-    # upscale_seconds, which is now the plain figure.
-    #
-    # 4 steps, not 8, for the upscale as well: that first LoRA pass was
-    # rendered at 8 only because the entry below once set cfg and nothing
-    # else, so the model's own count leaked through. The 4-step cell (196s,
-    # 0.970) is the better frame at 1:1 -- the freckles and pores come back
-    # closer to the plain pass's soft skin, not the 8-step pass's hard,
-    # over-contrasted ones, and hair strands, lashes and the loupe rim are
-    # as clean. At strength 0.3 it is one or two denoise steps whichever
-    # count is set, so most of the 196s is the tiled 2048 pass itself, not
-    # the steps.
+    # with the LoRA", and it hardens the skin the same way the finals do:
+    # untick it for a portrait worth the softer pass. 4 steps there (196s,
+    # 0.970 correlation with the enlarged init) against 442s for the plain
+    # pass; 4 is a better frame at 1:1 than 8 (docs/decisions/
+    # MODEL-MEASUREMENTS.md). upscale_seconds above is the plain pass's.
     lora_options:
       - key: turbo
         label: "Turbo (4 steps)"
@@ -1225,12 +925,11 @@ models:
     # to red") and rewrites only what the instruction touches. Not a generator;
     # no chip, only the Instruct action on image cards.
     edit_only: true
-    # The largest model here at ~20GB, and the one that looked like a memory
-    # problem: with only tiled_decoding, 2048 returned a flat colour field
-    # after ~5 minutes and reported success, and with no tiling at all it ate
-    # the machine's RAM until Draw Things had to be killed by hand.
-    # tiled_diffusion turns out to fix both symptoms -- 2048 comes back at
-    # 1.000 correlation with the source and memory stays bounded. It is slow
+    # The largest model here at ~20GB. With only tiled_decoding, 2048 returns
+    # a flat colour field after ~5 minutes and reports success, and with no
+    # tiling at all it eats the machine's RAM until Draw Things has to be
+    # killed by hand. tiled_diffusion fixes both: 2048 comes back at 1.000
+    # correlation with the source and memory stays bounded. It is slow
     # (~12 min) because of the model's size, not because of the tiling.
     tiled_diffusion: true
     upscale_seconds: 721
@@ -1291,27 +990,22 @@ models:
 # because none of the draft/final/upscale staging applies: a video job is one
 # shot at one size, and the only two useful dials are clip length and model.
 #
-# Settings below are measured, not guessed (see the numbers per entry). Two
-# things learned the hard way and worth not re-deriving:
-#   - Draw Things floors each side of a video request to a multiple of 64, so
-#     832x480 comes back 832x448; never assume output dimensions match the
-#     request. The width/height below are a pixel budget rather than a fixed
-#     shape: each clip is requested in its own still's aspect at roughly this
-#     area (clip_size in app/video.py), so a square image is not squashed.
+# Settings below are measured, not guessed (see the numbers per entry).
+# Draw Things floors each side of a video request to a multiple of 64, so
+# 832x480 comes back 832x448; never assume output dimensions match the
+# request. The width/height below are a pixel budget rather than a fixed
+# shape: each clip is requested in its own still's aspect at roughly this
+# area (clip_size in app/video.py), so a square image is not squashed.
 #
 # To add one: label, dt_filename and a width/height pixel budget are enough to
 # start; steps/cfg/motion_scale default sensibly (VideoModelSpec in
 # app/schemas.py). Measure sec_per_frame the same way FusionX's was: time a
-# real clip and divide.
+# real clip and divide. Read docs/decisions/VIDEO.md before adding an
+# anime-tuned I2V model or a Wan 2.2 A14B pair.
 #
 # MiniMax H3 and FusionX ship, H3 first: the Animate dialog offers the first
 # as its default, and H3 is the recommendation -- twice as fast with its Turbo
 # LoRA, and the only one that has done a pose change (docs/decisions/VIDEO.md).
-# AniSora v3.2 was measured here and removed -- it returned
-# the start frame back motionless every time, over four configurations, at up
-# to an hour a clip, and the mixture-of-experts support it needed went with it.
-# docs/decisions/VIDEO.md is the record, and is worth reading before adding
-# another anime-tuned I2V model or another Wan 2.2 A14B pair.
 video_models:
   minimax-h3:
     label: "MiniMax H3 + Turbo"
@@ -1343,6 +1037,11 @@ video_models:
     frame_step: 17
     frame_offset: 5
     fps: 24
+    # 22/56/73/124/141/192 frames. 8 s (192) is the longest H3's grid allows
+    # under Draw Things' 201-frame ceiling (video.MAX_FRAMES; 243 frames is
+    # refused with a 422). 6 and 8 s are not rendered here: the cost below is
+    # near-linear, so 8 s is about 22 minutes.
+    clip_seconds: [1, 2, 3, 5, 6, 8]
     # 640x640 on an M4 Pro (48GB) with the Turbo LoRA at 8 steps: 172s for
     # 22 frames (with the first model load) and 860s for 124, i.e. close to
     # linear rather than Wan's frames^1.32. Swap peaked at 20GB during the

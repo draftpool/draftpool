@@ -154,6 +154,12 @@ def _write_webp(frames: list[bytes], fps: int, out: Path) -> Path:
     return out
 
 
+# Draw Things' own ceiling on num_frames: above it the API answers 422 "Value
+# for Number of Frames must be between 1 and 201, inclusive" without rendering.
+# Measured asking H3 for 243 frames (10 s), 12 November 2026.
+MAX_FRAMES = 201
+
+
 def snap_frame_count(n: int, step: int = 4, offset: int = 1) -> int:
     """Snap to the nearest clip length on the model's grid: offset + step*k.
 
@@ -163,18 +169,23 @@ def snap_frame_count(n: int, step: int = 4, offset: int = 1) -> int:
     step is the shortest clip, so k is at least 1.
     """
     k = max(1, round((n - offset) / step))
+    # never past what Draw Things takes: the longest grid length within it
+    k = min(k, max(1, (MAX_FRAMES - offset) // step))
     return offset + step * k
 
 
-def clip_presets(fps: int, step: int = 4, offset: int = 1) -> list[int]:
-    """Frame counts for the Animate dialog's 1, 2, 3 and 5 second choices.
+def clip_presets(fps: int, step: int = 4, offset: int = 1,
+                 seconds: tuple[int, ...] = (1, 2, 3, 5)) -> list[int]:
+    """Frame counts for the Animate dialog's length choices, from `seconds`.
 
     Each is the grid length nearest to that many seconds at the model's own
-    fps: at 16 fps on Wan's grid that is 17/33/49/81, at 24 fps on H3's it is
-    22/56/73/124. The dialog labels them with the seconds they really come to.
+    fps: 1/2/3/5 s at 16 fps on Wan's grid are 17/33/49/81, at 24 fps on H3's
+    22/56/73/124. A length past MAX_FRAMES snaps down to the longest that
+    fits, and is offered once. The dialog labels them with the seconds they
+    really come to.
     """
     out: list[int] = []
-    for seconds in (1, 2, 3, 5):
+    for seconds in seconds:
         n = snap_frame_count(seconds * fps, step, offset)
         if n not in out:
             out.append(n)

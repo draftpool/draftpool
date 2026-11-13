@@ -105,21 +105,6 @@ for arg in "$@"; do
     --llms) DOWNLOAD_LLMS=1 ;;
     --loras) DOWNLOAD_LORAS=1 ;;
     --video-lora) DOWNLOAD_VIDEO_LORA=1 ;;
-    # dropped rather than aliased: it used to pull checkpoints too, and doing
-    # that silently under a flag that says nothing about them would be worse
-    # than an error that names the replacement
-    --download-models)
-      echo "--download-models is gone. Use: --llms (Ollama models) and/or"
-      echo "--loras (the Civitai speed LoRAs)."
-      exit 1 ;;
-    # dropped for the same reason: it fetched three named checkpoints, and the
-    # app now takes any checkpoint of a class it supports instead
-    --anime-checkpoints)
-      echo "--anime-checkpoints is gone: the app no longer names checkpoints to"
-      echo "download. Import any Illustrious, Anima or SDXL checkpoint into Draw"
-      echo "Things and it is set up for its class (docs/ADDING-A-MODEL.md)."
-      echo "--loras still fetches the two speed LoRAs."
-      exit 1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $arg"; echo; usage; exit 1 ;;
   esac

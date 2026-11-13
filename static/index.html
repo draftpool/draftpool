@@ -4022,9 +4022,9 @@ function showDetail(g) {
 }
 
 // Clip lengths come from the model: each family has its own frame grid (Wan
-// 4n+1 at 16 fps, MiniMax H3 17n+5 at 24), so the server sends the lengths
-// nearest 1, 2, 3 and 5 seconds and the wait for each. These are the fallback
-// for a server from before it did.
+// 4n+1 at 16 fps, MiniMax H3 17n+5 at 24) and its own list of lengths
+// (VideoModelSpec.clip_seconds), so the server sends the frame counts and the
+// wait for each. These are the fallback for a server from before it did.
 const CLIP_PRESETS = [17, 33, 49, 81];
 function clipOptions(m, selected) {
   const fps = (m && m.fps) || 16;

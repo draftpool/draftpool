@@ -37,7 +37,7 @@ _DOCS_SECTION = re.compile(r"^## Documentation\n.*?(?=^## )", re.M | re.S)
 # what a search engine shows under the page title; keep each under ~160 chars
 DESCRIPTIONS = {
     "SETUP.md": "Installing draftpool on a Mac: the setup script, Draw Things and "
-                "Ollama, the Civitai models, where your images live, updating "
+                "Ollama, which Civitai checkpoints work, where your images live, updating "
                 "and troubleshooting.",
     "GUIDE.md": "Using draftpool: drafts and prompt variants, finalize, upscale, "
                 "edit, combine and animate, LoRAs, anime-model prompting, and "

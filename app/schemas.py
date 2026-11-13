@@ -380,6 +380,9 @@ class VideoModelSpec(BaseModel):
     frame_step: int = 4
     frame_offset: int = 1
     fps: int = 16
+    # the Animate dialog's lengths, in seconds (video.clip_presets); the last
+    # is also the longest clip the server will queue (snap_frames)
+    clip_seconds: list[int] = [1, 2, 3, 5]
     # measured seconds per output frame, for the UI's wait estimate, and the
     # clip length it was measured at (cost per frame grows with length)
     sec_per_frame: float = 20.0
@@ -416,15 +419,17 @@ class VideoModelSpec(BaseModel):
     def snap_frames(self, n: int) -> int:
         """On the model's grid, and no longer than the longest clip offered.
 
-        The cap is the 5 s preset: a request for more (the API allows up to
-        241 frames so H3's 124 fits) would otherwise queue a FusionX clip of
-        hours, which the old 81-frame limit on the request prevented.
+        The cap is the longest preset: a request for more (the API allows up
+        to Draw Things' 201 frames, so H3's 192 fits) would otherwise queue a
+        FusionX clip of hours, which the old 81-frame limit on the request
+        prevented.
         """
         return min(snap_frame_count(n, self.frame_step, self.frame_offset),
                    self.presets()[-1])
 
     def presets(self) -> list[int]:
-        return clip_presets(self.fps, self.frame_step, self.frame_offset)
+        return clip_presets(self.fps, self.frame_step, self.frame_offset,
+                            tuple(self.clip_seconds))
 
 
 class AnimateRequest(BaseModel):
@@ -434,7 +439,7 @@ class AnimateRequest(BaseModel):
     # snapped server-side to the model's own grid and capped at its longest
     # clip (VideoModelSpec.snap_frames). A clip plays at its model's own fps,
     # so the request has none: an `fps` an older page sends is ignored.
-    num_frames: int = Field(default=33, ge=5, le=241)
+    num_frames: int = Field(default=33, ge=5, le=201)  # Draw Things' ceiling, video.MAX_FRAMES
 
 
 class PromptVariant(BaseModel):
@@ -624,7 +629,7 @@ class MotionPromptRequest(BaseModel):
     # The clip this prompt is for. Without it the LLM was told a static "1 to 5
     # seconds" and planned motion for up to 2.4x the clip it actually got, which
     # a model performs by starting the move and then holding.
-    num_frames: int = Field(default=33, ge=5, le=241)
+    num_frames: int = Field(default=33, ge=5, le=201)  # Draw Things' ceiling, video.MAX_FRAMES
     fps: int = Field(default=16, ge=8, le=30)
     # the model the clip is for, so the length is snapped to its grid and
     # timed at its fps; absent (an older page), the request's fps and Wan's

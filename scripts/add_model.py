@@ -54,11 +54,13 @@ is any good are not things this can score. It writes contact sheets and tells
 you which ones to look at. Everything numeric -- timings, flat/blocked/empty
 detection, the prompt-length curves, upscale correlation -- is automatic.
 
-WHY THERE ARE CONTROL RENDERS EVERYWHERE
+WHY THERE ARE CONTROL RENDERS
 A Draw Things session that has stopped rendering answers 200 with no image and
 keeps passing GET /, and a whole batch of measurements was once taken in that
-state and believed. Every expensive cell here is bracketed by a 256px render on
-a known-good model. See docs/decisions/FALSE-SUCCESS.md.
+state and believed. So a 256px render on a known-good model proves the session
+works before anything is measured, and another runs straight after any cell
+that fails, to say whether the session or the cell is at fault. See
+docs/decisions/FALSE-SUCCESS.md.
 """
 
 from __future__ import annotations
@@ -292,6 +294,7 @@ class Renderer:
         # batch with an empty image that way -- a healthy session reported
         # as stalled
         self.control_sampler = control_sampler
+        self.alive: bool | None = None  # the last control's answer, once one ran
         # what the app sends this model with every prompt (prompt_kit); the
         # control render is another model and goes out bare
         self.opener, self.negative = opener, negative
@@ -313,7 +316,8 @@ class Renderer:
         # a cell rendered with another opener or negative is another
         # measurement, not this one finished: every add_model.py cell went out
         # bare until 12 November 2026, and those must not be resumed as these
-        if (done and done.get("ok") and done.get("opener", "") == opener
+        if (done and done.get("ok") and not job.get("fresh")
+                and done.get("opener", "") == opener
                 and done.get("negative", "") == negative):
             return done
         prompt = job.get("prompt", "")
@@ -397,18 +401,37 @@ class Renderer:
                 rec["why"] = "flat colour field"
         self.results[name] = rec
         self._save()
+        if measured and not rec["ok"] and self.control_model:
+            # the one question a failed cell raises: is it the session or the cell?
+            fine = self.control(explain=name)
+            rec["why"] += ("; a control rendered right after it, so the session is fine "
+                           "and this cell is the problem" if fine else
+                           "; the control after it failed too: the session is not healthy")
+            self._save()
         flag = "" if rec["ok"] else f"  <-- {rec['why']}"
         print(f"  {name:24} {rec['seconds']:7.1f}s{flag}", flush=True)
         return rec
 
-    def control(self) -> bool:
-        """Is the renderer alive? Cheap, and on a different model on purpose."""
+    def control(self, *, explain: str | None = None) -> bool:
+        """Is the renderer alive? Cheap, and on a different model on purpose.
+
+        Rendered once per run, before anything is measured, and then only to
+        `explain` a measured cell that failed (render() asks): a control before
+        every cell made Draw Things swap checkpoints twice a cell for a check
+        that tells nothing while cells succeed. Every call site still calls
+        this before its cell; after the first it answers from that render.
+        Never resumed from results.json -- it is about this session.
+        """
         if not self.control_model:
             return True
+        if self.alive is not None and explain is None:
+            return self.alive
         self.controls += 1
         rec = self.render(f"_control{self.controls}", model=self.control_model,
                           prompt="a red square", width=256, height=256, steps=4,
-                          cfg=1.0, seed=7, timeout=600, sampler=self.control_sampler)
+                          cfg=1.0, seed=7, timeout=600, sampler=self.control_sampler,
+                          fresh=True)
+        self.alive = rec["ok"]
         if not rec["ok"]:
             print("\n  !! control render failed: the Draw Things session is not "
                   "healthy. Restart it and re-run; finished cells are kept.")

@@ -578,7 +578,7 @@ def test_every_form_the_civitai_page_shows_names_the_version():
                 "urn:air:sdxl:checkpoint:civitai:1307857@3313575+3198988", "civitai:1307857@3313575"):
         assert version_from_ref(ref) == 3313575, ref
     assert version_from_ref("AB" * 32, by_hash=lambda h: 7) == 7
-    for bad in ("", "unholy desire", "civitai:1307857", "ab" * 31):
+    for bad in ("", "some checkpoint", "civitai:1307857", "ab" * 31):
         with pytest.raises(ValueError):
             version_from_ref(bad, by_hash=lambda h: 7)
 

@@ -235,7 +235,7 @@ def test_h3_ships_on_its_own_grid_and_recipe():
     h3 = load_registry(CONFIG_PATH).video_models["minimax-h3"]
     # the first-frame checkpoint, not the reference one
     assert "fl2va" in h3.dt_filename
-    assert h3.presets() == [22, 56, 73, 124]
+    assert h3.presets() == [22, 56, 73, 124, 141, 192]
     assert all((n - 5) % 17 == 0 for n in h3.presets())
     assert h3.fps == 24
     assert h3.sampler and h3.shift_for_audio is not None

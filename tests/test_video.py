@@ -163,10 +163,24 @@ def test_snap_frame_count_on_h3_grid():
     assert video.snap_frame_count(124, 17, 5) == 124
     assert video.snap_frame_count(80, 17, 5) == 73
     assert video.snap_frame_count(0, 17, 5) == 22
-    for n in range(0, 250):
+    for n in range(0, 400):
         assert (video.snap_frame_count(n, 17, 5) - 5) % 17 == 0
 
 
 def test_clip_presets_are_nearest_to_whole_seconds():
     assert video.clip_presets(16) == [17, 33, 49, 81]
     assert video.clip_presets(24, 17, 5) == [22, 56, 73, 124]
+
+
+def test_no_clip_is_longer_than_draw_things_takes():
+    """Draw Things refuses num_frames above 201 ("must be between 1 and 201",
+    422 before rendering anything): a 10 s H3 clip, 243 frames, was refused
+    that way. A length past it is not offered, and a snap lands on the
+    longest grid length within it -- 192 on H3's 17k+5, 8.0 s at 24 fps."""
+    assert video.MAX_FRAMES == 201
+    assert video.clip_presets(24, 17, 5, seconds=(1, 2, 3, 5, 6, 8, 10)) == [
+        22, 56, 73, 124, 141, 192]
+    assert video.snap_frame_count(243, 17, 5) == 192
+    assert video.snap_frame_count(250, 4, 1) == 201
+    for n in range(0, 400):
+        assert video.snap_frame_count(n, 17, 5) <= video.MAX_FRAMES

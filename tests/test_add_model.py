@@ -451,3 +451,44 @@ def test_a_control_that_draws_its_red_square_flat_is_a_pass(tmp_path, monkeypatc
     assert r.control()
     cell = r.render("cell", model="m.ckpt", prompt="p", width=64, height=64, steps=4)
     assert not cell["ok"] and "flat" in cell["why"]
+
+
+def test_a_control_renders_once_and_again_only_to_explain_a_failed_cell(tmp_path, monkeypatch):
+    """A control before every cell made Draw Things swap checkpoints twice a
+    cell for a check that only tells anything when a cell fails. Now: one at
+    the start, proving the session renders, and one straight after a failed
+    cell, whose verdict goes on that cell -- the session, or the cell."""
+    import base64
+    import io
+
+    import scripts.add_model as am
+    from scripts.add_model import Renderer
+
+    sent = []
+    fail = {"bad"}
+
+    class DT(_FakeDrawThings):
+        def post(self, url, json):
+            sent.append(json)
+            buf = io.BytesIO()
+            flat = json["model"] == "m.ckpt" and json["prompt"] in fail
+            (Image.new("RGB", (64, 64), (20, 140, 30)) if flat
+             else Image.effect_noise((64, 64), 64).convert("RGB")).save(buf, "PNG")
+
+            class R:
+                status_code = 200
+
+                def json(self_inner):
+                    return {"images": [base64.b64encode(buf.getvalue()).decode()]}
+            return R()
+
+    monkeypatch.setattr(am.httpx, "Client", DT)
+    r = Renderer(tmp_path, "control.ckpt", control_sampler="Euler A Trailing")
+    for name in ("a", "b", "c"):
+        assert r.control()
+        r.render(name, model="m.ckpt", prompt=name, width=64, height=64, steps=4)
+    assert [s["model"] for s in sent].count("control.ckpt") == 1
+    r.control()
+    rec = r.render("x", model="m.ckpt", prompt="bad", width=64, height=64, steps=4)
+    assert [s["model"] for s in sent].count("control.ckpt") == 2
+    assert not rec["ok"] and "control rendered" in rec["why"]

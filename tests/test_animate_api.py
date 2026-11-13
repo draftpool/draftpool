@@ -69,21 +69,25 @@ def test_fusionx_clip_is_unchanged(client):
 def test_video_models_offer_each_model_s_own_lengths(client):
     by_key = {m["key"]: m for m in client.get("/api/video-models").json()}
     assert by_key["fusionx"]["presets"] == [17, 33, 49, 81]
-    assert by_key["minimax-h3"]["presets"] == [22, 56, 73, 124]
+    assert by_key["minimax-h3"]["presets"] == [22, 56, 73, 124, 141, 192]
     assert by_key["minimax-h3"]["fps"] == 24
-    assert set(by_key["minimax-h3"]["est_minutes"]) == {"22", "56", "73", "124"}
+    assert set(by_key["minimax-h3"]["est_minutes"]) == {"22", "56", "73", "124", "141", "192"}
 
 
 def test_a_request_past_the_longest_clip_is_capped(client):
-    """The request may ask for up to 241 frames so H3's 124 fits; FusionX used
-    to be held at 81 by the request itself, and must still be."""
+    """The request may ask for up to Draw Things' 201 frames so H3's 192 fits;
+    FusionX used to be held at 81 by the request itself, and must still be.
+    Past 201 the request is refused here: Draw Things would refuse it later."""
     g = a_still(client)
     fx = client.post(f"/api/generations/{g.id}/animate",
-                     json={"model_key": "fusionx", "num_frames": 241}).json()
+                     json={"model_key": "fusionx", "num_frames": 201}).json()
     h3 = client.post(f"/api/generations/{g.id}/animate",
-                     json={"model_key": "minimax-h3", "num_frames": 241}).json()
+                     json={"model_key": "minimax-h3", "num_frames": 201}).json()
     assert fx["num_frames"] == 81
-    assert h3["num_frames"] == 124
+    assert h3["num_frames"] == 192
+    too_long = client.post(f"/api/generations/{g.id}/animate",
+                           json={"model_key": "minimax-h3", "num_frames": 243})
+    assert too_long.status_code == 422
 
 
 def test_motion_prompt_is_planned_for_the_models_own_clip_length(client, monkeypatch):
