@@ -1,9 +1,11 @@
 # draftpool
 
-A self-hosted image generation studio for Apple Silicon Macs. It connects
+A self-hosted AI image generation studio for Apple Silicon Macs. It connects
 [Draw Things](https://drawthings.ai/), which runs the image models, to
 [Ollama](https://ollama.com/), which runs a local LLM that writes prompts. A
-small web page connects the two. Everything runs on your own machine.
+small web page connects the two. Everything runs on your own machine, offline:
+FLUX, Qwen Image, Z-Image and SDXL models, anime checkpoints from Civitai,
+editing, upscaling and image-to-video.
 
 The idea: don't expect one prompt to give you the picture you had in mind.
 Make a batch of cheap drafts instead, across several prompt variations, models

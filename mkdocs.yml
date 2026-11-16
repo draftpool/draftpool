@@ -6,7 +6,7 @@ repo_url: https://github.com/draftpool/draftpool
 repo_name: draftpool/draftpool
 # the home page's search-result description; the other pages' are in
 # scripts/docs_site.py
-site_description: Self-hosted image generation for Apple Silicon Macs. Draw Things renders cheap drafts, a local LLM writes the prompts, and only the keepers get finished.
+site_description: A free, open-source AI image generator that runs locally on Apple Silicon Macs. Draw Things renders cheap drafts and an Ollama LLM writes the prompts.
 
 # The site is the user docs as they are in the repo; scripts/docs_site.py
 # makes README.md the home page and unlinks what is not published here.

@@ -1,14 +1,35 @@
-{#- Link-preview tags for the docs site (mkdocs.yml theme.custom_dir). The
-    description is the page's own, set by scripts/docs_site.py, or the site's.
-    Every page shares one preview picture, docs/images/social.jpg (1200x630,
-    the size the large card wants). The 404 page has no page and gets none. -#}
+{#- Search and link-preview tags for the docs site (mkdocs.yml
+    theme.custom_dir). The title and description are the page's own, set by
+    scripts/docs_site.py (`seo_title`, `description`), or the site's. The home
+    page's title already names draftpool; every other page gets " - draftpool"
+    after it. Every page shares one preview picture, docs/images/social.jpg
+    (1200x630, the size the large card wants). The 404 page has no page and
+    gets none of this. -#}
 {% extends "base.html" %}
+
+{%- macro page_title() -%}
+  {%- if page.meta and page.meta.seo_title -%}
+    {{ page.meta.seo_title if page.is_homepage
+       else page.meta.seo_title ~ " - " ~ config.site_name }}
+  {%- elif page.title and not page.is_homepage -%}
+    {{ page.title | striptags }} - {{ config.site_name }}
+  {%- else -%}
+    {{ config.site_name }}
+  {%- endif -%}
+{%- endmacro -%}
+
+{% block htmltitle %}
+  {%- if page %}
+  <title>{{ page_title() }}</title>
+  {%- else %}
+  <title>{{ config.site_name }}</title>
+  {%- endif %}
+{% endblock %}
 
 {% block extrahead %}
 {%- if page and page.canonical_url %}
   {%- set description = page.meta.description or config.site_description -%}
-  {%- set title = config.site_name if page.is_homepage
-                  else page.title ~ " - " ~ config.site_name -%}
+  {%- set title = page_title() -%}
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{ config.site_name }}">
   <meta property="og:title" content="{{ title }}">
@@ -22,5 +43,25 @@
   <meta name="twitter:image" content="{{ config.site_url }}images/social.jpg">
   <meta name="twitter:title" content="{{ title }}">
   <meta name="twitter:description" content="{{ description }}">
+  {#- what the software is, for search engines' structured data; home only #}
+  {%- if page.is_homepage %}
+  <script type="application/ld+json">
+  {{ {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": config.site_name,
+    "description": description,
+    "url": config.site_url,
+    "downloadUrl": config.repo_url,
+    "image": config.site_url ~ "images/social.jpg",
+    "applicationCategory": "MultimediaApplication",
+    "applicationSubCategory": "AI image generation",
+    "operatingSystem": "macOS 13 or later, Apple Silicon",
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}
+  } | tojson }}
+  </script>
+  {%- endif %}
 {%- endif %}
 {% endblock %}
