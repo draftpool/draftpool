@@ -7,8 +7,9 @@ Installation is in [Setup](SETUP.md). Edge cases and workarounds are in
 ## Making drafts
 
 1. Type what you want to see in the prompt box, in your own words.
-2. Pick one or more models from the chips above the prompt, and a
-   [shape](#shape).
+2. Pick one or more models from the chips above the prompt (the ☑ and ☐ icons
+   at the bottom of their left-hand column select and deselect every chip at
+   once), and a [shape](#shape).
 3. **Enrich prompt** has the LLM write several **prompt variants** from your
    words (3 by default), which you can edit or drop. Skip it and your prompt is
    sent as written. **From image…** starts from a picture instead: a vision
@@ -541,7 +542,10 @@ publish the smaller version instead.
 
 ## Odds and ends
 
-- **✎** next to the session picker renames the session.
+- **✎** next to the session picker renames the session. **🗑** deletes it:
+  its prompts and every image and clip in it, after asking. It waits until
+  nothing in the session is still queued or rendering. Anything you've already
+  posted to Civitai stays there.
 - **Finder** on a card shows the image file in Finder.
 - **✕** on a card deletes the image file too.
 - **Storage**, at the bottom of the **⚙** dialog, shows where images are kept

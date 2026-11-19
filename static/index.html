@@ -105,8 +105,11 @@
   #modelChips { flex-direction: column; align-items: stretch; gap: 8px; margin-top: 0; }
   .dialectGroup { display: flex; gap: 12px; align-items: flex-start; }
   .dialectChips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+  /* the gutter column of a group: its label, and under the last one the
+     select/deselect-all pair */
+  .dialectSide { flex: none; width: var(--gutter); display: flex; flex-direction: column; }
   .dialectLabel {
-    flex: none; width: var(--gutter); padding-top: 9px; font-weight: 500;
+    padding-top: 9px; font-weight: 500;
     font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
     cursor: help; color: var(--hue, var(--muted));
   }
@@ -234,6 +237,21 @@
      cannot sit in a .fieldBody and needs the gutter measured out by hand.
      After .hint, whose margin shorthand would otherwise reset the indent. */
   .gutterHint { margin-left: calc(var(--gutter) + 12px); }
+  /* select all / deselect all: two muted, borderless icons in the gutter
+     under the last dialect label, where a wrapped strip leaves empty space;
+     after the last chip they wrapped onto a line of their own whenever that
+     row was full. A chip's height, and dropped by the label's height plus
+     the 8px row gap, so they line up with the second line of chips; pulled
+     left by the icon's inset so the glyph lines up with the label text. The
+     words are the tooltip. */
+  #modelBulk { display: flex; gap: 2px; margin: 16px 0 0 -8px; }
+  #modelBulk[hidden] { display: none; }
+  .bulkBtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 33px; padding: 0; border: none; border-radius: 999px;
+    background: none; color: var(--muted); cursor: pointer;
+  }
+  .bulkBtn:hover { color: var(--accent); background: var(--panel2); }
   /* an action about to resize the picture says so before it runs: same weight
      as a hint, but coloured, because it changes what you get back */
   .warn {
@@ -610,12 +628,13 @@
   #notice .noticeMsg { font-size: 13px; line-height: 1.5; }
   #notice .noticeMsg b { color: var(--err); font-weight: 600; }
   #notice .noticeRow { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-  #helpBtn, #stepsBtn, #renameBtn {
+  #helpBtn, #stepsBtn, #renameBtn, #deleteSessionBtn {
     width: 28px; height: 28px; padding: 0; border-radius: 50%; font-size: 14px;
     background: var(--panel2); color: var(--muted); border: 1px solid var(--border);
     align-self: center;
   }
   #helpBtn:hover, #stepsBtn:hover, #renameBtn:not(:disabled):hover { color: var(--accent); border-color: var(--accent); }
+  #deleteSessionBtn:not(:disabled):hover { color: var(--err); border-color: var(--err); }
   #stepsDlg { max-width: 860px; padding: 20px 24px; }
   #stepsDlg h2 { font-size: 16px; margin: 0 0 6px; }
   #stepsDlg table { border-collapse: collapse; width: 100%; margin-top: 12px; }
@@ -658,6 +677,10 @@
   #renameDlg h3 { font-size: 14px; margin: 0 0 8px; }
   #renameDlg input { width: 100%; box-sizing: border-box; }
   #renameDlg .row { justify-content: flex-end; margin-top: 12px; }
+  #deleteSessionDlg { padding: 16px 18px; width: min(460px, 90vw); }
+  #deleteSessionDlg h3 { font-size: 14px; margin: 0 0 8px; }
+  #deleteSessionDlg .row { justify-content: flex-end; margin-top: 12px; }
+  #deleteSessionGo { background: var(--err); border-color: var(--err); }
   #stepsDlg .tuneBtn { font-size: 12px; padding: 3px 8px; }
   /* The Tune wizard (app/tune.py). A crop is shown at native pixels -- object-fit:
      none -- because what is being judged (coloured speckle on skin and hair,
@@ -708,6 +731,7 @@
   <select id="llmPicker" title="Ollama model used for prompt enrichment, refine and image description. The image-reading flows (From image…, Finalize+, Write from image and Read from image inside Publish, and Improve with LLM inside Animate and Instruct) need a vision model: qwen3-vl:8b reads a frame most accurately, gemma3 is the more creative writer" style="background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px"></select>
   <select id="sessionPicker" title="Switch between sessions; every session keeps its full image history" style="background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px"></select>
   <button id="renameBtn" class="secondary" disabled title="Rename this session. The name is only what the picker shows: the prompt is left as it is">&#9998;</button>
+  <button id="deleteSessionBtn" class="secondary" disabled title="Delete this session: its prompts and every image and clip in it. Asks first">&#128465;</button>
   <button id="stepsBtn" title="Models: which ones the composer offers, and how many denoising steps their drafts and finals get. Set once here, used by every generation from then on. Storage cleanup lives here too">&#9881;</button>
   <button id="helpBtn" title="How this app works">?</button>
 </header>
@@ -732,6 +756,18 @@
          they name this block and line its chips up with every row below -->
     <div id="modelBlock">
       <div class="row" id="modelChips"></div>
+      <!-- moved under the last dialect label on every draw -->
+      <span id="modelBulk" hidden>
+        <button type="button" class="bulkBtn" id="selectAllModels" title="Select all models"
+          aria-label="Select all models"><svg viewBox="0 0 16 16" width="14" height="14"
+          fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+          stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2.5"/>
+          <path d="M5 8.2l2 2 4-4.4"/></svg></button>
+        <button type="button" class="bulkBtn" id="selectNoModels" title="Deselect all models"
+          aria-label="Deselect all models"><svg viewBox="0 0 16 16" width="14" height="14"
+          fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="12"
+          height="12" rx="2.5"/></svg></button>
+      </span>
       <p class="hint gutterHint" id="promptPlan" style="display:none"></p>
     </div>
 
@@ -867,7 +903,7 @@
     <li><b>⤴ from</b> jumps to the image this one was made from; <b>i</b> shows all settings and the chain back to the original.</li>
     <li>✕ on a card deletes the image and its file. Retry appears on failures. <b>Check storage</b> in <b>&#9881;</b> finds cards and files that have lost each other.</li>
     <li><b>Remove drafts</b> in <b>&#9881;</b> clears the open session's drafts; one something was made from keeps its prompt and seed so the chain still works.</li>
-    <li>Sessions save automatically; switch from the picker above, <b>&#9998;</b> renames the open one.</li>
+    <li>Sessions save automatically; switch from the picker above, <b>&#9998;</b> renames the open one and <b>&#128465;</b> deletes it with everything in it.</li>
   </ul>
 
   <div class="closeRow"><button id="helpClose" class="secondary">Close</button></div>
@@ -942,6 +978,16 @@
   </form>
 </dialog>
 
+<dialog id="deleteSessionDlg">
+  <h3>Delete session</h3>
+  <p class="hint" id="deleteSessionMsg" style="margin:0"></p>
+  <p class="hint" id="deleteSessionErr" style="margin:8px 0 0;color:var(--err)"></p>
+  <div class="row">
+    <button type="button" class="secondary" id="deleteSessionCancel">Cancel</button>
+    <button type="button" id="deleteSessionGo">Delete session</button>
+  </div>
+</dialog>
+
 <dialog id="tuneDlg">
   <h2 id="tuneTitle">Tune</h2>
   <p class="tuneStep" id="tuneStep"></p>
@@ -987,6 +1033,8 @@ let sse = null;
 let llmVision = null;      // can the selected LLM read images? null = unknown
 
 $("#helpBtn").onclick = () => $("#helpDlg").showModal();
+$("#selectAllModels").onclick = () => selectAllModels(true);
+$("#selectNoModels").onclick = () => selectAllModels(false);
 $("#helpClose").onclick = () => $("#helpDlg").close();
 $("#helpDlg").onclick = (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); };
 
@@ -1741,6 +1789,8 @@ const DIALECTS = [
     help: "Danbooru-trained checkpoints. They read sentences too, but the words they know best are Danbooru's own, so Enrich writes them their own set: prose worded the way Danbooru words things, behind the quality opener each checkpoint asks for." },
 ];
 
+const MODEL_BULK = $("#modelBulk");
+
 function renderModelChips() {
   // instruction editors get no generation chip; they power the Instruct action
   INSTRUCT_MODEL = MODELS.find(m => m.edit_only && m.available && m.shown) || null;
@@ -1765,7 +1815,10 @@ function renderModelChips() {
     label.className = "dialectLabel " + d.key;
     label.textContent = d.label;
     label.title = d.help;
-    group.appendChild(label);
+    const side = document.createElement("div");
+    side.className = "dialectSide";
+    side.appendChild(label);
+    group.appendChild(side);
     // the chips wrap inside their own column rather than inside the group, so
     // a second line of them starts under the first chip and not under the label
     const strip = document.createElement("div");
@@ -1788,9 +1841,7 @@ function renderModelChips() {
         c.onclick = () => {
           selectedModels.has(m.key) ? selectedModels.delete(m.key) : selectedModels.add(m.key);
           c.classList.toggle("selected");
-          renderPromptPlan();
-          renderHygiene();
-          renderAspectHint();
+          modelSelectionChanged();
         };
       }
       strip.appendChild(c);
@@ -1803,6 +1854,12 @@ function renderModelChips() {
     const first = chipModels.find(m => m.available);
     if (first) { selectedModels.add(first.key); chipEls.get(first.key).classList.add("selected"); }
   }
+  // the pair sits in the gutter under the last label; held by reference,
+  // since clearing the chips above detached it. Only worth showing when there
+  // is more than one chip to pick.
+  MODEL_BULK.hidden = chipEls.size < 2;
+  const lastSide = chips.querySelector(".dialectGroup:last-child .dialectSide");
+  if (lastSide) lastSide.appendChild(MODEL_BULK);
   if (!chips.children.length) {
     chips.innerHTML = `<span class="hint">No models to show — every one is either
       unticked in <b>&#9881; Models</b> or not installed in Draw Things.</span>`;
@@ -1810,6 +1867,22 @@ function renderModelChips() {
   renderPromptPlan();
   renderHygiene();
   renderAspectHint();
+}
+
+function modelSelectionChanged() {
+  renderPromptPlan();
+  renderHygiene();
+  renderAspectHint();
+}
+
+// Every chip that can be picked, or none. "All" means the available ones only:
+// a greyed chip has no entry in chipEls and nothing to render with. "None"
+// really is none -- Generate and Enrich refuse an empty selection with a
+// toast, and the next full redraw of the chips falls back to the first model.
+function selectAllModels(on) {
+  selectedModels = new Set(on ? chipEls.keys() : []);
+  chipEls.forEach((el, k) => el.classList.toggle("selected", selectedModels.has(k)));
+  modelSelectionChanged();
 }
 
 // The chip's tooltip: the stage settings, and what each has taken here when
@@ -2892,6 +2965,7 @@ async function refreshPicker() {
   // a session created since the page loaded is listed now, and is the open one
   picker.value = session?.id || "";
   $("#renameBtn").disabled = !session;
+  $("#deleteSessionBtn").disabled = !session;
 }
 
 $("#renameBtn").onclick = async () => {
@@ -2912,6 +2986,51 @@ $("#renameForm").onsubmit = async (e) => {
     await refreshPicker();
     toast(res.name ? `Renamed to “${res.name}”` : "Name cleared: the picker shows the prompt again");
   } catch (err) { toast("Rename failed: " + err.message); }
+};
+
+// Delete session: the whole session, not a sweep of it, so it names what goes
+// and waits for a second press. The server
+// refuses while anything in the session is still queued or running, and that
+// refusal is shown here rather than closing the dialog. Afterwards the page
+// starts over on a new session, the same way picking "new session" does.
+// The counts are read fresh rather than from genIndex, which keeps a card
+// deleted since the page loaded and the publish state it had then.
+let deletingSession = null;
+$("#deleteSessionBtn").onclick = async () => {
+  if (!session) return;
+  let s;
+  try { s = await api(`/api/sessions/${session.id}`); }
+  catch (e) { toast("Could not read the session: " + e.message); return; }
+  deletingSession = s.id;
+  // only finished cards have a file: a failed one, or a draft Remove drafts
+  // kept for its lineage, has none to delete
+  const gens = s.generations.filter(g => g.status === "done" && !g.pruned_at);
+  const clips = gens.filter(g => g.kind === "video").length;
+  const pics = gens.length - clips;
+  const posted = gens.filter(g => g.published_at).length;
+  const label = sessionLabel(s) || "this session";
+  const what = [pics && plural(pics, "image"), clips && plural(clips, "clip")].filter(Boolean);
+  $("#deleteSessionMsg").innerHTML = `<b>${esc(label)}</b>: its prompts` +
+    (what.length ? ` and <b>${what.join(" and ")}</b>` : "") +
+    " are deleted from this computer. This cannot be undone." +
+    (posted ? ` ${plural(posted, "post")} already on Civitai ${posted === 1 ? "stays" : "stay"} there.` : "");
+  $("#deleteSessionErr").textContent = "";
+  $("#deleteSessionGo").disabled = false;
+  $("#deleteSessionDlg").showModal();
+};
+$("#deleteSessionCancel").onclick = () => $("#deleteSessionDlg").close();
+$("#deleteSessionGo").onclick = async () => {
+  const sid = deletingSession;
+  if (!sid) return;
+  $("#deleteSessionGo").disabled = true;
+  try {
+    await api(`/api/sessions/${sid}`, { method: "DELETE" });
+  } catch (e) {
+    $("#deleteSessionErr").textContent = "Not deleted: " + e.message;
+    $("#deleteSessionGo").disabled = false;
+    return;
+  }
+  location.reload();
 };
 
 async function ensureSession() {
@@ -5553,6 +5672,7 @@ async function loadSession(sessionId) {
   const switching = session?.id !== s.id;
   session = { id: s.id, instruction: s.instruction };
   $("#renameBtn").disabled = false;
+  $("#deleteSessionBtn").disabled = false;
   $("#instruction").value = s.instruction;
   $("#rounds").innerHTML = ""; cards.clear();
   cmpReset();                        // the grid it was picked from is gone

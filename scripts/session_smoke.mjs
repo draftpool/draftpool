@@ -328,6 +328,55 @@ check("clearing the name shows the prompt again",
   (await optionText(plainSession)).includes(B_TEXT) && !(await optionText(plainSession)).includes("My cube"),
   await optionText(plainSession));
 
+// Delete session: asks first, says why when the server refuses, and on the
+// second press takes the session out of the picker and starts a new one. The
+// refusal (a render still queued) is answered in the browser, so nothing has
+// to be queued against Draw Things to see it.
+const doomed = await newSession("SESSION TO DELETE", null);
+await page.reload({ waitUntil: "networkidle2" });
+await page.waitForSelector(`#sessionPicker option[value="${doomed}"]`);
+check("the delete button is off with no session open",
+  await page.$eval("#deleteSessionBtn", b => b.disabled));
+await open(doomed);
+check("and live with one open", await page.$eval("#deleteSessionBtn", b => !b.disabled));
+const dlgOpen = () => page.$eval("#deleteSessionDlg", d => d.open);
+await page.click("#deleteSessionBtn");
+await sleep(300);
+const msg = await page.$eval("#deleteSessionMsg", el => el.textContent);
+check("it asks first, naming the session and saying it is final",
+  await dlgOpen() && msg.includes("SESSION TO DELETE") && /cannot be undone/.test(msg), msg);
+await page.click("#deleteSessionCancel");
+await sleep(200);
+check("Cancel leaves it alone",
+  !(await dlgOpen()) && (await api("/api/sessions")).some(s => s.id === doomed));
+
+const refuse = req => {
+  if (req.method() === "DELETE" && req.url().endsWith(`/api/sessions/${doomed}`))
+    return req.respond({ status: 409, contentType: "application/json",
+      body: JSON.stringify({ detail: "1 render in this session is still queued or running" }) });
+  req.continue();
+};
+await page.setRequestInterception(true);
+page.on("request", refuse);
+await page.click("#deleteSessionBtn");
+await sleep(300);
+await page.click("#deleteSessionGo");
+await sleep(300);
+const err = await page.$eval("#deleteSessionErr", el => el.textContent);
+check("a refusal is shown in the dialog, which stays open",
+  await dlgOpen() && /still queued/.test(err), err);
+page.off("request", refuse);
+await page.setRequestInterception(false);
+
+await page.click("#deleteSessionGo");
+await page.waitForNavigation({ waitUntil: "networkidle2" });
+await sleep(300);
+check("the second press deletes it",
+  !(await api("/api/sessions")).some(s => s.id === doomed));
+check("and the page is on a new session, without it in the picker",
+  await page.$eval("#sessionPicker", el => el.value) === "" &&
+  !(await page.$(`#sessionPicker option[value="${doomed}"]`)));
+
 // A session is created by the first Generate (or Enrich) on a fresh page. The
 // picker has to show it straight away: it used to stay on "new session", and
 // choosing "new session" again then did nothing, because the picker's value

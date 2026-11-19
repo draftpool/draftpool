@@ -70,7 +70,7 @@ from .schemas import (
     StepsRequest,
     UpscaleRequest,
 )
-from .sessions import StorageMisconfigured, Store
+from .sessions import SessionBusy, StorageMisconfigured, Store
 from .settings import STAGES, SettingsStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -1844,6 +1844,23 @@ async def rename_session(session_id: str, req: RenameSessionRequest) -> dict:
     if not store.rename_session(session_id, req.name):
         raise HTTPException(404, "session not found")
     return {"id": session_id, "name": store.get_session(session_id).name}
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str) -> dict:
+    """Delete a session with everything in it: prompts, cards and files.
+
+    409 while any of its renders is queued or running (Store.delete_session).
+    """
+    try:
+        done = store.delete_session(session_id)
+    except SessionBusy as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if done is None:
+        raise HTTPException(404, "session not found")
+    log.info("deleted session %s (%d generation(s), %d file(s))",
+             session_id, done["generations"], len(done["files"]))
+    return done
 
 
 @app.get("/api/sessions/{session_id}")

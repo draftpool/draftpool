@@ -120,6 +120,10 @@ class StorageMisconfigured(RuntimeError):
     """The image folder does not look like the one these images were written to."""
 
 
+class SessionBusy(RuntimeError):
+    """A session still has renders queued or running, so it cannot be deleted."""
+
+
 class Store:
     def __init__(self, data_dir: Path = DATA_DIR) -> None:
         self.data_dir = data_dir
@@ -196,6 +200,66 @@ class Store:
                 "UPDATE sessions SET name = ? WHERE id = ?", (name, session_id)
             )
         return cur.rowcount > 0
+
+    def delete_session(self, session_id: str) -> Optional[dict]:
+        """Delete a session outright: its prompts, every row and their files.
+
+        None when there is no such session. Refused (SessionBusy) while any of
+        its renders is queued or running: a job reads its row and its parent's
+        image when it starts and writes its own image when it ends, and a held
+        job sits at pending while it waits for Draw Things, so deleting under
+        either would leave a render writing into a session that is gone --
+        save_image recreates the folder to do it.
+
+        Only the files a row owns are deleted (image, init image, clip in
+        either container), and the folder only once nothing else is left in
+        it: anything else in there was put there by somebody, not this app.
+        Nothing outside the session points into it -- every child is made in
+        its parent's session, and Combine refuses two sessions -- so no other
+        session's lineage is cut by this.
+        """
+        with self._connect() as conn:
+            if conn.execute(
+                "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
+            ).fetchone() is None:
+                return None
+            ids = [r["id"] for r in conn.execute(
+                "SELECT id FROM generations WHERE session_id = ?", (session_id,)
+            )]
+            busy = conn.execute(
+                "SELECT COUNT(*) FROM generations WHERE session_id = ? "
+                f"AND status NOT IN ({','.join('?' * len(self.FINISHED))})",
+                (session_id, *self.FINISHED),
+            ).fetchone()[0]
+            if busy:
+                raise SessionBusy(
+                    f"{busy} render{'s' if busy != 1 else ''} in this session "
+                    f"{'are' if busy != 1 else 'is'} still queued or running; "
+                    "wait for them to finish, or delete them, first"
+                )
+            conn.execute("DELETE FROM generations WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        folder = self.data_dir / "sessions" / session_id
+        files = [
+            p for gen_id in ids
+            for p in (
+                folder / f"{gen_id}.png", folder / f"{gen_id}_init.png",
+                folder / f"{gen_id}.mp4", folder / f"{gen_id}.webp",
+            )
+            if p.is_file()
+        ]
+        size = sum(p.stat().st_size for p in files)
+        for p in files:
+            p.unlink(missing_ok=True)
+        try:
+            folder.rmdir()
+        except OSError:
+            pass  # absent, or holding something that is not ours
+        return {
+            "generations": len(ids),
+            "files": [self.relative(p) for p in files],
+            "bytes": size,
+        }
 
     def list_sessions(self) -> list[SessionSummary]:
         with self._connect() as conn:
