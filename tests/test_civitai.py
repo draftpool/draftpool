@@ -512,3 +512,40 @@ def test_a_lora_without_a_page_claims_nothing_and_the_same_one_is_listed_once():
     # nothing at all to credit is no field at all, as before
     assert "Civitai resources" not in civitai.settings_line(
         gen(), "m", None, loras=[LoraSpec(file="x.ckpt")])
+
+
+# -- a post of several pictures -------------------------------------------------
+
+def test_tags_most_of_the_pictures_share_come_first():
+    merged = civitai.merge_tags([
+        ["1girl", "solo", "forest"],
+        ["1girl", "cat", "forest"],
+        ["1girl", "cat", "night"],
+    ])
+    # shared by three, then by two, then one picture's own -- which still has
+    # a place, after the shared ones. Within a count, the higher a tag sat in
+    # its own picture's list (broadest first), the earlier it comes
+    assert merged == ["1girl", "cat", "forest", "solo", "night"]
+
+
+def test_a_tie_keeps_the_order_the_suggestions_gave():
+    # forest and cat are each in two pictures; forest was the broader for the
+    # first picture that named it, so it stays ahead
+    assert civitai.merge_tags([["forest", "cat"], ["forest", "cat"]]) == ["forest", "cat"]
+
+
+def test_anime_stays_in_front_when_any_picture_put_it_there():
+    merged = civitai.merge_tags([["anime", "1girl"], ["1girl", "cat"], ["1girl", "cat"]])
+    assert merged[0] == "anime"
+
+
+def test_the_merge_is_capped_at_civitais_five():
+    assert len(civitai.merge_tags([list("abcdefgh")], limit=5)) == 5
+
+
+def test_a_post_of_several_names_each_model_once():
+    text = civitai.suggest_detail_many(["BAS Anima", "Krea 2", "BAS Anima"])
+    assert text == "BAS Anima and Krea 2, rendered locally in Draw Things."
+    assert civitai.suggest_detail_many(["A"]) == "A, rendered locally in Draw Things."
+    assert civitai.suggest_detail_many(["A", "B", "C"]).startswith("A, B and C,")
+    assert civitai.suggest_detail_many([]) == civitai.PROVENANCE

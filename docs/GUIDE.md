@@ -472,9 +472,11 @@ Each image shows its size in the corner (**768px**, **1.5K**, **2K**, **4K**),
 in green from 2K up.
 
 The **show** row above the grid filters what you see: click **drafts**,
-**finals**, a model or a size. Click again to undo. The **⤵** button on a card
-shows only that image's family: where it came from and everything made from it.
-Filtering only hides images; nothing is deleted.
+**finals**, **faithfuls**, **upscaled** (Upscale and 2x fast), a model, and so
+on. Click again to undo. Chips in the same group add up, so **finals** and
+**upscaled** together show both; the counts are the same as the line above.
+The **⤵** button on a card shows only that image's family: where it came from
+and everything made from it. Filtering only hides images; nothing is deleted.
 
 ![The grid filtered to one model's images](images/filter-by-model.jpg)
 
@@ -539,6 +541,16 @@ The generation settings can't be edited. For an upscale or a face fix, the
 settings shown are those of the image it was made from. Drafts and videos can't
 be published. Civitai limits uploads to 10MB, so a 4K PNG may be rejected;
 publish the smaller version instead.
+
+### Several images in one post
+
+Pick two to ten images with **⧉** and press **Publish N…** in the filter row.
+They go up as one draft post, in the order you picked them; the first is the
+cover. In the dialog, **to front** makes another one the cover and **✕** leaves
+one out. Each image keeps its own settings, and in *With prompts* its own
+prompt, which can't be edited here: to rewrite a prompt, publish that image on
+its own. **Write from image 1** reads the cover. The button is greyed while a
+draft is among the picks.
 
 ## Odds and ends
 

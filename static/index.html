@@ -18,6 +18,11 @@
        the model chips, and the T/P badge on a draft card. Cool = prose,
        warm = Danbooru tags. */
     --prose: #6ea8fe; --tags: #f472b6;
+    /* The filter row's three groups, one hue each, so a selection says which
+       group it is in: what kind of image, which model, whose lineage. Kept
+       off the dialect pair above -- blue and pink already mean prose and tags
+       on these same models in the composer. */
+    --fKind: #2dd4bf; --fModel: #c4b5fd; --fLineage: #f2b544;
   }
   * { box-sizing: border-box; }
   body {
@@ -382,9 +387,17 @@
   .chip.filterChip b { margin-left: 6px; font-weight: 600; opacity: .6;
     font-variant-numeric: tabular-nums; }
   .chip.filterChip.selected b { opacity: 1; }
+  .chip.filterChip.f-kind { --hue: var(--fKind); }
+  .chip.filterChip.f-model { --hue: var(--fModel); }
+  .chip.filterChip.f-lineage { --hue: var(--fLineage); }
+  /* at rest a faint edge of the group's hue, so the groups read apart before
+     anything is picked; selected, the hue in full with a wash of it behind */
+  .chip.filterChip { border-color: color-mix(in srgb, var(--hue, var(--border)) 35%, var(--border)); }
+  .chip.filterChip.selected { border-color: var(--hue); color: var(--hue);
+    background: color-mix(in srgb, var(--hue) 16%, var(--panel2)); }
   #filterRow .sep { width: 1px; align-self: stretch; margin: 2px 2px;
     background: var(--border); flex: 0 0 auto; }
-  #fClear, #fCompare, #fCombine, #fPicksClear { font-size: 11.5px; padding: 4px 8px; font-weight: 500; }
+  #fClear, #fCompare, #fCombine, #fPublish, #fPicksClear { font-size: 11.5px; padding: 4px 8px; font-weight: 500; }
   .card.flash { box-shadow: 0 0 0 3px var(--accent); transition: box-shadow .3s; }
   .fromLink { color: var(--accent); cursor: pointer; text-decoration: none; }
   .fromLink:hover { text-decoration: underline; }
@@ -402,6 +415,16 @@
     font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
     color: var(--muted); white-space: pre-wrap; word-break: break-word;
   }
+  /* the pictures of a post of several, in post order: the first is the cover */
+  .pubStrip { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+  .pubStrip figure { margin: 0; width: 92px; }
+  .pubStrip img { width: 92px; height: 92px; object-fit: cover; border-radius: 6px;
+    border: 1px solid var(--border); display: block; background: var(--panel2); }
+  .pubStrip figure:first-child img { border-color: var(--accent); }
+  .pubStrip figcaption { display: flex; justify-content: space-between; gap: 4px;
+    font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .pubStrip figcaption a { color: var(--muted); text-decoration: none; }
+  .pubStrip figcaption a:hover { color: var(--text); }
   .pubLink { color: var(--ok); text-decoration: none; font-size: 10.5px;
     font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
   .pubLink:hover { text-decoration: underline; }
@@ -816,16 +839,11 @@
   <div id="filterRow" class="row" style="display:none">
     <span class="rowLabel" title="Click to show only matching cards. Several in a row are OR'd; across rows they narrow together. Filtering only hides — nothing is deleted, and results still arrive while a filter is on.">show</span>
     <span id="fChips" class="filterChips"></span>
-    <select id="fSize" title="Long edge of the image. Mostly tracks kind, so it earns its place mainly for picking 3K/4K upscales out of a pile of 2K ones.">
-      <option value="">any size</option>
-      <option value="small">under 1K</option>
-      <option value="1024">1K–2K</option>
-      <option value="2048">2K and up</option>
-    </select>
     <span id="filterCount" class="hint"></span>
     <button id="fReview" class="secondary" title="Review the images shown above one at a time, full screen: arrow keys or the on-screen arrows step through exactly what the filter is showing, in the order they appear. Esc returns here, on the image you stopped at.">Review ▶</button>
     <button id="fCompare" class="secondary" title="Compare up to ten images side by side at the same magnification, panned together: what another twelve steps, or another 2K, actually did. Pick them with the ⧉ button on each card. With a filter on and nothing picked, this opens on the two most recent comparable images the filter is showing.">Compare ⧉</button>
     <button id="fCombine" class="secondary" style="display:none" title="Put what one picked picture shows into the other picked picture's scene. Pick exactly two with ⧉.">Combine…</button>
+    <span id="fPublishWrap" class="blocked" style="display:none"><button id="fPublish" class="secondary">Publish…</button></span>
     <button id="fPicksClear" class="secondary" style="display:none" title="Unpick every picked image">unpick</button>
     <button id="fClear" class="secondary" style="display:none" title="Clear every filter">clear</button>
   </div>
@@ -889,6 +907,7 @@
     <dt>Combine…</dt><dd>Puts what one picture shows into another's scene. Pick two with <b>⧉</b>, first the subject, second the scene (<b>⇄</b> swaps), and say what to take and where it goes. A new pose needs its own sentence. About two minutes; Upscale after.</dd>
     <dt>Animate…</dt><dd>A short clip with this image as the first frame. Describe one simple continuous motion the frame supports ("hair drifts in the wind", "slow push in"); camera moves and ambient motion work, a pose change does not. Do not mention the camera unless it should move. <b>Improve with LLM</b> rewrites your note; pick qwen3-vl:8b so it reads the frame. Tens of minutes per clip.</dd>
     <dt>Fix faces</dt><dd>Detects faces and re-renders each; only the face is written back. Strength sets how far it may change. The detector needs eyes, so for a mask or visor drag a box around the face yourself.</dd>
+    <dt>Publish…</dt><dd>Sends the image to Civitai as a private draft post, with its settings. For several in one post, pick them with <b>⧉</b> and press <b>Publish N…</b> above the grid: the first picked is the cover.</dd>
     <dt>Finder</dt><dd>Opens Finder with this image's file selected.</dd>
   </dl>
 
@@ -1746,7 +1765,9 @@ async function refreshHealth(first = false) {
   let h;
   try { h = await api("/api/health"); } catch { return; }  // backend restarting
   ESRGAN_OK = h.esrgan !== false;
+  const hadCivitai = CIVITAI_OK;
   CIVITAI_OK = h.civitai !== false;
+  if (hadCivitai !== CIVITAI_OK) cmpSyncPicks();   // the filter row's Publish N
   dtFails = h.draw_things ? 0 : dtFails + 1;
   olFails = h.ollama ? 0 : olFails + 1;
   const up = dtFails < (first ? 1 : 2);
@@ -1998,7 +2019,6 @@ async function init() {
   // picking a past session from the dropdown -- so a fresh page showed nothing
   // until a job happened to finish. The library scope needs no session at all.
   refreshStats();
-  $("#fSize").onchange = applyFilter;
   $("#fClear").onclick = clearFilters;
 
   $("#fReview").onclick = () => openReview();
@@ -2022,6 +2042,7 @@ async function init() {
   $("#fCompare").onclick = openCompare;
   $("#fPicksClear").onclick = cmpClearPicks;
   $("#fCombine").onclick = () => showCombine(cmpSel[0], cmpSel[1]);
+  $("#fPublish").onclick = () => showPublishMany([...cmpSel]);
   $("#cmpActual").onclick = () => cmpSetMode("actual");
   $("#cmpMatch").onclick = () => cmpSetMode("match");
   $("#cmpFit").onclick = () => cmpSetMode("fit");
@@ -3862,7 +3883,7 @@ function makeCard(g, ptag = null) {
       <button data-act="params" class="secondary" title="Prompt, settings and lineage: the chain of operations that led to this image">i</button>`}
     </div>
     <button class="delBtn" data-act="del" title="Delete this image">✕</button>
-    <button class="pickBtn secondary" hidden title="Pick this image to compare it (up to ${CMP_MAX}) or, with one other, to combine the two. Then press Compare or Combine in the filter row above.">⧉</button>`;
+    <button class="pickBtn secondary" hidden title="Pick this image to compare it (up to ${CMP_MAX}), to combine it with one other, or to publish several as one post. Then press Compare, Combine or Publish in the filter row above.">⧉</button>`;
   const from = card.querySelector(".fromLink");
   if (from) from.onclick = () => jumpTo(g.parent_id);
   const src = card.querySelector(".srcLink");
@@ -3873,8 +3894,6 @@ function makeCard(g, ptag = null) {
   card.dataset.model = effectiveModel(g);
   if (g.parent_id) card.dataset.parent = g.parent_id;   // for the lineage filter
   if (g.source_id) card.dataset.source = g.source_id;   // a Combine's second origin
-  const edge = Math.max(g.width || 0, g.height || 0);
-  card.dataset.size = edge >= 2048 ? "2048" : edge >= 1024 ? "1024" : "small";
   // read by compare mode: the step count is the thing being compared, and the
   // exact pixel size is what a pane needs to place the picture at 1:1
   if (g.steps != null) card.dataset.steps = g.steps;
@@ -4349,14 +4368,16 @@ let pubSimple = true;
 // and worked around -- window.open with "noopener" returns null whether it
 // opened a tab or not, by specification. So the link is a link, and clicking
 // it is a gesture of its own that nothing can block.
-function pubDone(v, gen, url) {
+function pubDone(v, gen, url, count = 1) {
   v.innerHTML = `
     <div style="width:460px;max-width:88vw;padding:18px">
-      <h3 style="margin:0 0 8px;font-size:14px">Draft created · post ${gen.published_post_id}</h3>
+      <h3 style="margin:0 0 8px;font-size:14px">Draft created · post ${gen.published_post_id}${count > 1 ? ` · ${count} images` : ""}</h3>
       <p class="hint" style="margin:0 0 4px">Only you can see it. Open it to set the
         maturity rating, check the details parsed correctly, and publish it — one
         click, on Civitai's own page.</p>
-      <p class="hint" style="margin:0 0 12px">The card now carries an <b>↗ published</b> link to the same place.</p>
+      <p class="hint" style="margin:0 0 12px">${count > 1
+        ? `Each of the ${count} cards now carries an <b>↗ published</b> link to the same post.`
+        : `The card now carries an <b>↗ published</b> link to the same place.`}</p>
       <div class="row">
         <a id="pubOpen" href="${esc(url)}" target="_blank" rel="noopener"
            style="background:var(--accent);color:#0b1020;border-radius:8px;padding:8px 14px;font-weight:600;text-decoration:none">Open the draft on Civitai ↗</a>
@@ -4560,6 +4581,168 @@ async function showPublish(g) {
   // scrollHeight read there is not the height the text actually needs, and
   // the box opens one line tall with the title scrolled out of sight
   fitTitle();
+}
+
+// Several picked pictures as one post. The single dialog's form, minus the two
+// prompt boxes: each picture's prompt is a different text, so "With prompt"
+// here means every picture carries the prompt that rendered it, and a prompt
+// worth rewriting is a picture worth publishing on its own. The order is the
+// order they were picked in, which is the order the post shows them -- the
+// first is the cover -- and a picture can be dropped from the post (it stays
+// picked; this is only the post's list) or moved to the front.
+async function showPublishMany(ids) {
+  const v = $("#viewer");
+  ids = ids.filter(id => cards.has(id));
+  let order = [...ids];
+  let pre = { title: "", detail: "", tags: [], images: [] };
+  let prefilled = true;
+  try {
+    pre = await api("/api/publish-defaults?" + ids.map(id => "ids=" + encodeURIComponent(id)).join("&"));
+  } catch (e) {
+    // a draft or an unfinished render among them is refused here as well as
+    // at publish; anything else costs only the prefill
+    if (/draft|not finished/i.test(e.message)) return toast("Cannot publish these: " + e.message);
+    prefilled = false;
+  }
+  const chunk = Object.fromEntries((pre.images || []).map(i => [i.id, i]));
+  const already = ids.filter(id => genIndex.get(id)?.published_at).length;
+  v.innerHTML = `
+    <div style="width:620px;max-width:88vw;padding:18px">
+      <h3 style="margin:0 0 10px;font-size:14px" id="pubManyHead"></h3>
+      ${already ? `<p class="hint" style="margin:0 0 12px;color:var(--ok)">${already === 1 ? "One of these has" : `${already} of these have`}
+        already been sent to Civitai. Publishing again creates a new, separate post; ${already === 1 ? "its card" : "their cards"} will link to the new one.</p>` : ""}
+      <div id="pubManyStrip" class="pubStrip"></div>
+      <div class="row" id="pubMode" style="margin:0 0 10px">
+        <span class="chip" data-mode="simple" title="Post the pictures with a title, a description and tags — and no prompts. Each still carries its own seed, steps, sampler, size and model.">Simple post</span>
+        <span class="chip" data-mode="full" title="Each picture carries the prompt and negative prompt that rendered it, written into its PNG for Civitai to read.">With prompts</span>
+      </div>
+      <p class="hint" id="pubModeHint" style="margin:0 0 10px"></p>
+      <details style="margin:0 0 10px"><summary class="hint" style="cursor:pointer">What goes with each picture</summary>
+        <div id="pubManyParams"></div></details>
+      <textarea id="pubTitle" placeholder="Title (optional)" maxlength="255" rows="1" ${FIELD}>${esc(pre.title || "")}</textarea>
+      <textarea id="pubDetail" rows="2" placeholder="Description (optional)" ${FIELD}>${esc(pre.detail || "")}</textarea>
+      <input id="pubTags" placeholder="Tags, comma separated (optional, up to 5)" value="" ${FIELD}>
+      <div class="row" style="margin:-2px 0 8px">
+        <button id="pubWrite" class="secondary" title="Ask the vision LLM to look at the cover picture — image 1 — and write a title, a description and tags for the post. A few seconds; nothing is sent to Civitai until you press Create draft.">Write from image 1</button>
+        <button id="pubUndoWrite" class="secondary" hidden title="Put the title, description and tags back the way they were">Undo</button>
+      </div>
+      <p class="hint" style="margin:10px 0 12px">Uploads the pictures one after another and creates <b>one</b> post holding them all, <b>only you can see it</b>, then hands you a link to it. That page is where you set the maturity rating, check the details parsed correctly, and publish it.</p>
+      <div class="row">
+        <button id="pubDraft" title="Upload the pictures and create one private draft post on Civitai. Nothing is public until you publish it there.">Create draft</button>
+        <button id="pubCancel" class="secondary" title="Close without uploading anything">Cancel</button>
+      </div>
+    </div>`;
+  v.onclick = null;
+  v.querySelector("#pubCancel").onclick = () => v.close();
+
+  const thumb = id => cards.get(id)?.querySelector(".imgbox img")?.src || "";
+  const draw = () => {
+    v.querySelector("#pubManyHead").textContent = `Publish to Civitai · ${order.length} images in one post`;
+    v.querySelector("#pubManyStrip").innerHTML = order.map((id, i) => `
+      <figure data-id="${id}" title="${esc(cards.has(id) ? cmpPlainLabel(cards.get(id)) : id)}">
+        <img src="${esc(thumb(id))}" alt="">
+        <figcaption>${i === 0 ? "<b>1 · cover</b>" : `<a href="#" class="pubFront" title="Make this the cover: first in the post">${i + 1} · to front</a>`}
+          ${order.length > 2 ? `<a href="#" class="pubDrop" title="Leave this one out of the post. It stays picked in the grid.">✕</a>` : ""}</figcaption>
+      </figure>`).join("");
+    v.querySelector("#pubManyParams").innerHTML = order.map((id, i) =>
+      `<p class="hint" style="margin:8px 0 2px"><b>${i + 1}</b> · ${esc(KIND_NOUN[cards.get(id)?.dataset.kind] || "")} ${id.slice(0, 6)}</p>
+       <pre class="pubParams">${esc((pubSimple ? chunk[id]?.settings : chunk[id]?.parameters) || "(no settings could be read for this image)")}</pre>`).join("");
+    v.querySelectorAll(".pubFront").forEach(a => a.onclick = e => {
+      e.preventDefault();
+      const id = a.closest("figure").dataset.id;
+      order = [id, ...order.filter(x => x !== id)];
+      draw();
+    });
+    v.querySelectorAll(".pubDrop").forEach(a => a.onclick = e => {
+      e.preventDefault();
+      const id = a.closest("figure").dataset.id;
+      order = order.filter(x => x !== id);
+      draw();
+    });
+  };
+
+  // Tags: prefilled from the prompts, so -- as in the single dialog -- they
+  // arrive empty for a simple post and are filled on the way into "with
+  // prompts", only while nobody has typed in the box.
+  const tagsBox = v.querySelector("#pubTags");
+  let tagsTouched = false;
+  tagsBox.addEventListener("input", () => { tagsTouched = true; });
+  const modeHint = v.querySelector("#pubModeHint");
+  const setMode = (simple) => {
+    pubSimple = simple;
+    for (const chip of v.querySelectorAll("#pubMode .chip"))
+      chip.classList.toggle("selected", (chip.dataset.mode === "simple") === simple);
+    if (!tagsTouched) tagsBox.value = simple ? "" : (pre.tags || []).join(", ");
+    modeHint.textContent = simple
+      ? "No prompts go with this post — only the title, description and tags below, and the settings each render measured, with the models that made each one."
+      : "Each picture carries the prompt that rendered it — for an upscale or a face fix, the one of the image it was made from. To rewrite a prompt before posting, publish that picture on its own from its card.";
+    draw();
+  };
+  for (const chip of v.querySelectorAll("#pubMode .chip"))
+    chip.onclick = () => setMode(chip.dataset.mode === "simple");
+  setMode(pubSimple);
+
+  const titleBox = v.querySelector("#pubTitle");
+  const detailBox = v.querySelector("#pubDetail");
+  const fitTitle = () => {
+    titleBox.style.height = "auto";
+    titleBox.style.height =
+      titleBox.scrollHeight + (titleBox.offsetHeight - titleBox.clientHeight) + "px";
+  };
+  titleBox.addEventListener("input", fitTitle);
+  titleBox.addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
+  const write = v.querySelector("#pubWrite");
+  const undoWrite = v.querySelector("#pubUndoWrite");
+  write.onclick = async () => {
+    if (llmVision === false) return toast(`${$("#llmPicker").value} is text-only: switch to a vision LLM to read an image`);
+    const before = { title: titleBox.value, detail: detailBox.value,
+                     tags: tagsBox.value, touched: tagsTouched };
+    write.disabled = true; write.textContent = "Looking at the cover…";
+    try {
+      const got = await api(`/api/generations/${order[0]}/caption-image`, { method: "POST" });
+      if (got.title) { titleBox.value = got.title; fitTitle(); }
+      if (got.description) detailBox.value = got.description;
+      tagsBox.value = (got.tags || []).join(", ");
+      tagsTouched = true;
+      undoWrite.hidden = false;
+      undoWrite.onclick = () => {
+        titleBox.value = before.title; fitTitle();
+        detailBox.value = before.detail;
+        tagsBox.value = before.tags;
+        tagsTouched = before.touched;
+        undoWrite.hidden = true;
+      };
+      toast("Title and description written from the cover");
+    } catch (e) { toast("Could not read the image: " + e.message); }
+    write.disabled = false; write.textContent = "Write from image 1";
+  };
+
+  const btn = v.querySelector("#pubDraft");
+  btn.onclick = async () => {
+    const btns = [...v.querySelectorAll("#pubDraft, #pubCancel")];
+    btns.forEach(b => b.disabled = true);
+    btn.textContent = `Uploading ${order.length}…`;
+    try {
+      const gens = await api("/api/publish", { method: "POST", body: {
+        ids: order,
+        title: titleBox.value.replace(/\s+/g, " ").trim(),
+        detail: detailBox.value.trim(),
+        tags: tagsBox.value.split(",").map(t => t.trim()).filter(Boolean).slice(0, 5),
+        simple: pubSimple,
+      }});
+      gens.forEach(g => { genIndex.set(g.id, g); markPublished(g); });
+      // the picks were for this post, as they are for a Combine
+      cmpClearPicks();
+      pubDone(v, gens[0], `https://civitai.com/posts/${gens[0].published_post_id}`, gens.length);
+    } catch (e) {
+      toast("Publish failed: " + e.message);
+      btns.forEach(b => b.disabled = false);
+      btn.textContent = "Create draft";
+    }
+  };
+  v.showModal();
+  fitTitle();
+  if (!prefilled) toast("Could not prefill the post; the fields start empty");
 }
 
 // The one editing dialog. Refine and Instruct used to be two actions, and the
@@ -5126,7 +5309,7 @@ function cmpSyncPicks() {
     b.textContent = at >= 0 ? String(at + 1) : "⧉";
     b.title = at >= 0
       ? `Pane ${at + 1} of the comparison — click to drop it`
-      : `Pick this image to compare it (up to ${CMP_MAX}) or, with one other, to combine the two. Then press Compare or Combine in the filter row above.`;
+      : `Pick this image to compare it (up to ${CMP_MAX}), to combine it with one other, or to publish several as one post. Then press Compare, Combine or Publish in the filter row above.`;
   });
   const n = cmpSel.length;
   const btn = $("#fCompare");
@@ -5138,6 +5321,19 @@ function cmpSyncPicks() {
   // Combine takes exactly two pictures, so it is only offered at two
   const comb = $("#fCombine");
   comb.style.display = n === 2 && INSTRUCT_MODEL ? "" : "none";
+  // A post of several pictures. One is the card's own Publish, which can also
+  // rewrite the prompt, so this only appears from two. Disabled rather than
+  // hidden when a pick cannot go -- a draft, or no key -- and the wrapper
+  // carries the reason, because a disabled button gets no hover of its own.
+  const drafts = cmpSel.filter(id => cards.get(id)?.dataset.kind === "draft").length;
+  $("#fPublishWrap").style.display = n >= 2 ? "" : "none";
+  $("#fPublish").textContent = `Publish ${n}…`;
+  $("#fPublish").disabled = !CIVITAI_OK || drafts > 0;
+  $("#fPublishWrap").title = !CIVITAI_OK
+    ? "Publish is unavailable: no Civitai API key. Put CIVITAI_TOKEN in .env (or civitai.key beside it) from civitai.com → Account settings → API Keys, then restart the server."
+    : drafts
+      ? `${drafts === 1 ? "One of the picked images is a draft" : `${drafts} of the picked images are drafts`}, and drafts are not published: unpick ${drafts === 1 ? "it" : "them"}, or finalize first.`
+      : `Send the ${n} picked images to Civitai as one post, in the order you picked them — image 1 is the cover. Creates a private draft: nothing is public until you publish it on Civitai.`;
 }
 
 function cmpDims(card) {
@@ -5481,11 +5677,15 @@ async function refreshStats() {
     if (!s.done && !s.pending && !s.failed) { el.style.display = "none"; return; }
     // a kind this list has never heard of is appended rather than dropped:
     // silently omitting it would make the parts disagree with the total
-    const KNOWN = ["draft", "final", "faithful", "edit", "detail", "upscale", "esrgan", "video"];
+    // counted the way the filter chips count (chipKind), in the chips' words,
+    // so "3 upscaled" here and "upscaled 3" on the chip are the same number
+    const KNOWN = ["draft", "final", "faithful", "edit", "detail", "upscale", "video"];
+    const fold = ks => Object.entries(ks).reduce(
+      (m, [k, n]) => (m[chipKind(k)] = (m[chipKind(k)] || 0) + n, m), {});
     const order = ks => [...KNOWN.filter(k => ks[k]),
                          ...Object.keys(ks).filter(k => !KNOWN.includes(k)).sort()];
-    const kinds = order(s.kinds)
-      .map(k => `${s.kinds[k]} ${KIND_NOUN[k] || k}${s.kinds[k] > 1 ? "s" : ""}`);
+    const kindCounts = ks => { const f = fold(ks); return order(f).map(k => kindWord(k, f[k])); };
+    const kinds = kindCounts(s.kinds);
     const extra = [
       s.pending ? `${s.pending} queued` : "",
       s.failed ? `<span class="statFail">${s.failed} failed</span>` : "",
@@ -5499,8 +5699,7 @@ async function refreshStats() {
       `<table class="statTable">${s.models.map(m => `<tr>` +
         `<td>${esc(m.label)}</td>` +
         `<td class="statN">${m.total}</td>` +
-        `<td class="statKinds">${order(m.kinds)
-            .map(k => `${m.kinds[k]} ${KIND_NOUN[k] || k}${m.kinds[k] > 1 ? "s" : ""}`).join(", ")}</td>` +
+        `<td class="statKinds">${kindCounts(m.kinds).join(", ")}</td>` +
         `<td class="statN">${fmtDur(m.seconds)}</td></tr>`).join("")}</table>`;
     el.style.display = "";
   } catch (e) {
@@ -5587,18 +5786,35 @@ function familyOf(id) {
 // a pair, and offering a chip list to pick from, are both only sane inside a
 // filter (see openCompare and cmpBuild).
 function filterOn() {
-  return !!(fKinds.size || fModels.size || $("#fSize").value || fLineage);
+  return !!(fKinds.size || fModels.size || fLineage);
+}
+
+// The kind chips double as the size categories -- drafts, finals, upscaled --
+// so there is one set of chips and its counts agree with the stats line.
+// "upscaled" is Upscale and 2x fast together: both enlarge a finished picture,
+// and two chips for them was one category split by the tool that did it.
+// Every other kind is its own chip.
+const KIND_CHIP = { esrgan: "upscale" };
+const KIND_CHIP_LABEL = { upscale: "upscaled" };
+function chipKind(kind) { return KIND_CHIP[kind] || kind; }
+// The chip's word for a kind: "drafts", "face fixes", "upscaled".
+function kindPlural(kind) {
+  if (KIND_CHIP_LABEL[kind]) return KIND_CHIP_LABEL[kind];
+  const noun = KIND_NOUN[kind] || kind;
+  return noun + (/(x|s|ch|sh)$/.test(noun) ? "es" : "s");
+}
+// "1 draft", "3 finals", "2 face fixes", "4 upscaled": a count in those words
+function kindWord(kind, n) {
+  return `${n} ${n === 1 && !KIND_CHIP_LABEL[kind] ? KIND_NOUN[kind] || kind : kindPlural(kind)}`;
 }
 
 function applyFilter() {
-  const z = $("#fSize").value;
   const family = fLineage ? familyOf(fLineage) : null;
   const all = document.querySelectorAll("#rounds .card");
   let shown = 0;
   all.forEach(c => {
-    const ok = (!fKinds.size || fKinds.has(c.dataset.kind))
+    const ok = (!fKinds.size || fKinds.has(chipKind(c.dataset.kind)))
             && (!fModels.size || fModels.has(c.dataset.model))
-            && (!z || c.dataset.size === z)
             && (!family || family.has(c.dataset.genId));
     c.style.display = ok ? "" : "none";
     if (ok) shown++;
@@ -5624,14 +5840,14 @@ function applyFilter() {
   if ($("#reviewer").open) reviewShow(rvIdx);
   $("#fClear").style.display = on ? "" : "none";
   $("#filterRow").style.display = all.length ? "" : "none";
-  document.querySelectorAll("#fChips .chip").forEach(ch => {
+  document.querySelectorAll("#fChips .chip:not(#fLineageChip)").forEach(ch => {
     const set = ch.dataset.kind ? fKinds : fModels;
     ch.classList.toggle("selected", set.has(ch.dataset.kind || ch.dataset.model));
   });
 }
 
 function clearFilters() {
-  fKinds.clear(); fModels.clear(); fLineage = null; $("#fSize").value = "";
+  fKinds.clear(); fModels.clear(); fLineage = null;
   refreshFilterOptions();
 }
 
@@ -5640,18 +5856,22 @@ function clearFilters() {
 function refreshFilterOptions() {
   const cards = [...document.querySelectorAll("#rounds .card")];
   const tally = key => cards.reduce((m, c) => m.set(c.dataset[key], (m.get(c.dataset[key]) || 0) + 1), new Map());
-  const kinds = tally("kind"), models = tally("model");
-  const KNOWN = ["draft", "final", "faithful", "edit", "detail", "upscale", "esrgan", "video"];
+  const kinds = cards.reduce((m, c) => {
+    const k = chipKind(c.dataset.kind);
+    return m.set(k, (m.get(k) || 0) + 1);
+  }, new Map());
+  const models = tally("model");
+  const KNOWN = ["draft", "final", "faithful", "edit", "detail", "upscale", "video"];
   const kindOrder = [...KNOWN.filter(k => kinds.has(k)),
                      ...[...kinds.keys()].filter(k => !KNOWN.includes(k)).sort()];
   const chip = (attr, val, label, n) =>
-    `<span class="chip filterChip" data-${attr}="${esc(val)}">${esc(label)}<b>${n}</b></span>`;
+    `<span class="chip filterChip f-${attr}" data-${attr}="${esc(val)}">${esc(label)}<b>${n}</b></span>`;
   $("#fChips").innerHTML =
-    kindOrder.map(k => chip("kind", k, (KIND_NOUN[k] || k) + "s", kinds.get(k))).join("") +
+    kindOrder.map(k => chip("kind", k, kindPlural(k), kinds.get(k))).join("") +
     (kinds.size && models.size > 1 ? `<i class="sep"></i>` : "") +
     (models.size > 1 ? [...models.keys()].sort()
       .map(m => chip("model", m, modelLabel(m), models.get(m))).join("") : "") +
-    (fLineage ? `<i class="sep"></i><span class="chip filterChip selected" id="fLineageChip"` +
+    (fLineage ? `<i class="sep"></i><span class="chip filterChip f-lineage selected" id="fLineageChip"` +
       ` title="Showing only this image’s lineage: the original it came from and every branch made from that">lineage ${esc(fLineage.slice(0, 6))} ✕</span>` : "");
   $("#fChips").querySelectorAll(".chip").forEach(ch => ch.onclick = () => {
     if (ch.id === "fLineageChip") { fLineage = null; return refreshFilterOptions(); }

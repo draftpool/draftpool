@@ -708,6 +708,25 @@ class PublishRequest(BaseModel):
     simple: bool = False
 
 
+class PublishManyRequest(BaseModel):
+    """Several pictures as one post, in the order given; the first is the cover.
+
+    The same title, description and tags as `PublishRequest`, said once for
+    the post. No prompt fields: each picture's prompt is its own text, and
+    rewriting it is what publishing that picture on its own is for. `simple`
+    still drops every one of them.
+
+    At most ten, which is what the grid lets you pick (CMP_MAX in the page).
+    Civitai's own cap per post is not exceeded by that and was not measured.
+    """
+
+    ids: list[str] = Field(min_length=1, max_length=10)
+    title: str = ""
+    detail: str = ""
+    tags: list[str] = Field(default_factory=list, max_length=5)
+    simple: bool = False
+
+
 class Generation(BaseModel):
     id: str
     session_id: str

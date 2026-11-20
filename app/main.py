@@ -59,6 +59,7 @@ from .schemas import (
     MotionPromptRequest,
     PromptVariant,
     PublishRequest,
+    PublishManyRequest,
     RefineRequest,
     HideUninstalledRequest,
     CivitaiRefRequest,
@@ -2488,6 +2489,50 @@ async def publish_defaults(gen_id: str) -> dict:
     }
 
 
+@app.get("/api/publish-defaults")
+async def publish_many_defaults(ids: list[str] = Query(min_length=1, max_length=10)) -> dict:
+    """What the dialog for a post of several pictures starts with.
+
+    The title is the first picture's, as for one: the session's instruction,
+    or its prompt with the quality dial peeled off. The description names
+    each model once. The tags are each picture's suggestions merged, the ones
+    most of them share first (civitai.merge_tags). And for every picture, the
+    two halves of the chunk that will be written into it -- the settings line
+    and the whole thing with its prompt -- so the dialog can show what each
+    one carries.
+    """
+    gens = [_publishable(i) for i in dict.fromkeys(ids)]
+    cache: dict = {}
+    images, labels, tags = [], [], []
+    title = ""
+    for gen in gens:
+        ancestors = _ancestors(gen, cache)
+        source = _publish_source(gen, ancestors)
+        spec = registry.models.get(source.model_key)
+        version_id = spec.civitai_version_id if spec else None
+        if not title:
+            detail = store.get_session(gen.session_id)
+            title = civitai.suggest_title(detail.instruction if detail else "", source.prompt)
+        labels.append(spec.label if spec else source.model_key)
+        tags.append(civitai.suggest_tags(source.prompt, spec))
+        kw = dict(also=_also_credited(gen, source), loras=_loras_credited(gen, source))
+        images.append({
+            "id": gen.id,
+            "settings": civitai.settings_line(
+                source, _model_name(spec, source), version_id,
+                (gen.width, gen.height), **kw),
+            "parameters": civitai.parameters(
+                source, _model_name(spec, source), version_id,
+                size=(gen.width, gen.height), **kw),
+        })
+    return {
+        "title": title,
+        "detail": civitai.suggest_detail_many(labels),
+        "tags": civitai.merge_tags(tags),
+        "images": images,
+    }
+
+
 @app.post("/api/generations/{gen_id}/caption-image")
 async def caption_image(gen_id: str) -> dict:
     """A title, a description and tags for a simple post, read off the image.
@@ -2601,6 +2646,109 @@ async def describe_image(gen_id: str) -> dict:
     }
 
 
+def _civitai_token() -> str:
+    api_token = civitai.token()
+    if api_token is None:
+        raise HTTPException(
+            400,
+            "No Civitai API key. Put CIVITAI_TOKEN in .env (or civitai.key beside "
+            "it) from civitai.com -> Account settings -> API Keys, then restart.",
+        )
+    return api_token
+
+
+def _uploadable(gen_id: str):
+    """The generation and its file, if its picture can go up as it stands.
+
+    Checked for every picture of a post before the first byte is sent, so a
+    post of several cannot stop half-way on a draft or an unfinished render.
+    """
+    gen = _publishable(gen_id)
+    if gen.kind == "video":
+        raise HTTPException(400, "Publishing is for images; clips are not supported")
+    if gen.status != "done":
+        raise HTTPException(400, f"image {gen.id[:6]} is not finished yet")
+    path = store.image_path(gen)
+    if not path.is_file():
+        raise HTTPException(404, f"nothing on disk for {gen.id[:6]} yet")
+    return gen, path
+
+
+def _model_name(spec, source: Generation) -> str:
+    return spec.dt_filename.removesuffix(".ckpt") if spec else source.model_key
+
+
+def _ancestors(gen: Generation, cache: Optional[dict] = None) -> dict:
+    """id -> Generation for everything in `gen`'s session, read once per session."""
+    cache = {} if cache is None else cache
+    if gen.session_id not in cache:
+        detail = store.get_session(gen.session_id)
+        cache[gen.session_id] = {g.id: g for g in (detail.generations if detail else [])}
+    return cache[gen.session_id]
+
+
+async def _prepared(gen: Generation, path, ancestors: dict,
+                    prompt: Optional[str], negative_prompt: Optional[str]):
+    """The bytes to upload for `gen`, and the Civitai version its post would link.
+
+    The prompt, seed and settings that made the picture, which for an upscale
+    or a face pass are its parent's rather than its own (civitai.source_of);
+    the size is the file's own. `prompt`/`negative_prompt` follow
+    civitai.parameters: None is the row's text, "" is none at all.
+    """
+    source = _publish_source(gen, ancestors)
+    spec = registry.models.get(source.model_key)
+    version_id = spec.civitai_version_id if spec else None
+    also = _also_credited(gen, source)
+    params = civitai.parameters(
+        source, _model_name(spec, source), version_id,
+        prompt=prompt, negative_prompt=negative_prompt,
+        # the picture's own pixels, which for an upscale are not the source's
+        size=(gen.width, gen.height),
+        also=also,
+        loras=_loras_credited(gen, source),
+    )
+    # the post links one version, and it is whichever of them Civitai knows:
+    # the composer's when it has a page, else the model that ran the pass
+    post_version_id = version_id or next((v for v in also if v), None)
+    # PIL re-encode of what may be a 4K PNG: off the event loop, or the whole
+    # server stalls for a second on every publish
+    png = await asyncio.to_thread(civitai.embed_parameters, path.read_bytes(), params)
+    return png, post_version_id
+
+
+async def _post(pictures: list, title: str, detail: str, tags: list[str]) -> list[Generation]:
+    """Upload each (gen, png, version) in order, create one draft holding them all,
+    and only then mark every row published.
+
+    Uploads go one at a time, each PNG dropped once sent: ten 4K upscales held
+    in memory at once is a lot to ask for a post. A failure part way leaves
+    staged uploads that no post refers to -- invisible on Civitai and nothing
+    to clean up -- and every row untouched, ready to try again.
+    """
+    client = civitai.CivitaiClient(_civitai_token())
+    images = []
+    try:
+        for gen, prepare in pictures:
+            png, version = await prepare()
+            images.append((await client.upload_image(png), gen.width, gen.height, version))
+            del png
+        post = await client.create_post(
+            images=[(u, w, h) for u, w, h, _ in images],
+            title=title.strip(),
+            detail=detail.strip(),
+            tags=[t.strip() for t in tags if t.strip()],
+            # the first picture that can credit a checkpoint: the cover's, as a rule
+            model_version_id=next((v for *_, v in images if v), None),
+        )
+    except civitai.CivitaiError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    for gen, _ in pictures:
+        store.mark_published(gen.id, post["id"])
+    log.info("published %s to %s (draft)", ", ".join(g.id for g, _ in pictures), post["url"])
+    return [store.get_generation(g.id) for g, _ in pictures]
+
+
 @app.post("/api/generations/{gen_id}/publish")
 async def publish(gen_id: str, req: PublishRequest = PublishRequest()) -> Generation:
     """Send this image to Civitai as a draft post, and record that it went.
@@ -2629,69 +2777,50 @@ async def publish(gen_id: str, req: PublishRequest = PublishRequest()) -> Genera
     was meant to carry no prompt cannot carry one because a box was populated
     behind the dialog's back.
     """
-    gen = _publishable(gen_id)
-    if gen.kind == "video":
-        raise HTTPException(400, "Publishing is for images; clips are not supported")
-    if gen.status != "done":
-        raise HTTPException(400, "image is not finished yet")
-    api_token = civitai.token()
-    if api_token is None:
-        raise HTTPException(
-            400,
-            "No Civitai API key. Put CIVITAI_TOKEN in .env (or civitai.key beside "
-            "it) from civitai.com -> Account settings -> API Keys, then restart.",
-        )
-    path = store.image_path(gen)
-    if not path.is_file():
-        raise HTTPException(404, "nothing on disk for this generation yet")
-
-    # the prompt, seed and settings that made the picture, which for an upscale
-    # or a face pass are its parent's rather than its own
-    detail = store.get_session(gen.session_id)
-    ancestors = {g.id: g for g in (detail.generations if detail else [])}
-    source = _publish_source(gen, ancestors)
-    spec = registry.models.get(source.model_key)
-    version_id = spec.civitai_version_id if spec else None
-    also = _also_credited(gen, source)
-    params = civitai.parameters(
-        source,
-        spec.dt_filename.removesuffix(".ckpt") if spec else source.model_key,
-        version_id,
-        prompt="" if req.simple else (
-            None if req.prompt is None else req.prompt.strip()
-        ),
-        negative_prompt="" if req.simple else (
-            None if req.negative_prompt is None else req.negative_prompt.strip()
-        ),
-        # the picture's own pixels, which for an upscale are not the source's
-        size=(gen.width, gen.height),
-        also=also,
-        loras=_loras_credited(gen, source),
+    gen, path = _uploadable(gen_id)
+    _civitai_token()
+    ancestors = _ancestors(gen)
+    prompt = "" if req.simple else (None if req.prompt is None else req.prompt.strip())
+    negative = "" if req.simple else (
+        None if req.negative_prompt is None else req.negative_prompt.strip()
     )
-    # the post links one version, and it is whichever of them Civitai knows:
-    # the composer's when it has a page, else the model that ran the pass
-    post_version_id = version_id or next((v for v in also if v), None)
-    # PIL re-encode of what may be a 4K PNG: off the event loop, or the whole
-    # server stalls for a second on every publish
-    png = await asyncio.to_thread(civitai.embed_parameters, path.read_bytes(), params)
+    [published] = await _post(
+        [(gen, lambda: _prepared(gen, path, ancestors, prompt, negative))],
+        req.title, req.detail, req.tags,
+    )
+    return published
 
-    client = civitai.CivitaiClient(api_token)
-    try:
-        uuid = await client.upload_image(png)
-        post = await client.create_post(
-            uuid=uuid,
-            width=gen.width,
-            height=gen.height,
-            title=req.title.strip(),
-            detail=req.detail.strip(),
-            tags=[t.strip() for t in req.tags if t.strip()],
-            model_version_id=post_version_id,
-        )
-    except civitai.CivitaiError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    store.mark_published(gen.id, post["id"])
-    log.info("published %s to %s (draft)", gen.id, post["url"])
-    return store.get_generation(gen.id)
+
+@app.post("/api/publish")
+async def publish_many(req: PublishManyRequest) -> list[Generation]:
+    """Several pictures as one draft post, in the order given; the first is its cover.
+
+    The same bargain as publishing one, per picture: each carries the metadata
+    of the generation that composed it and its own size, and each row is
+    marked published -- with the one post's id -- only once Civitai has
+    answered. Every picture is checked before anything is uploaded, so one
+    draft among them refuses the post rather than leaving it half sent.
+
+    There are no prompt edits here. Each picture's prompt is a different text,
+    and a dialog with a pair of prompt boxes per picture is the single publish
+    dialog ten times over; `simple` drops them all, and without it each
+    picture carries the prompt that rendered it. A prompt worth rewriting is a
+    picture worth publishing on its own.
+    """
+    ids = list(dict.fromkeys(req.ids))
+    checked = [_uploadable(i) for i in ids]
+    _civitai_token()
+    cache: dict = {}
+    words = "" if req.simple else None
+
+    def preparer(gen, path):
+        anc = _ancestors(gen, cache)
+        return lambda: _prepared(gen, path, anc, words, words)
+
+    return await _post(
+        [(gen, preparer(gen, path)) for gen, path in checked],
+        req.title, req.detail, req.tags,
+    )
 
 
 @app.delete("/api/generations/{gen_id}")

@@ -133,7 +133,7 @@ def test_an_upscale_publishes_its_parents_prompt_and_seed(client, fake):
     assert "Size: 128x128" in text
     assert "Size: 64x64" not in text
     # and the image attached is that same big one
-    assert fake.sent["width"] == 128
+    assert fake.sent["images"][0][1] == 128
 
 
 def test_a_qwen_edit_publishes_the_checkpoint_that_drew_it(client, fake):
@@ -557,3 +557,175 @@ def test_a_row_from_before_loras_were_recorded_credits_none(client, fake):
     parent = a_finished_image(client, model_key="lustrousmix-anima")
     defaults = client.get(f"/api/generations/{parent.id}/publish-defaults").json()
     assert '"type":"lora"' not in defaults["settings"]
+
+
+# -- several pictures in one post -----------------------------------------------
+
+class ManyClient:
+    """Records every upload, in order, and the one post made of them."""
+
+    pngs: list = []
+    sent: dict = {}
+
+    def __init__(self, *a, **kw):
+        pass
+
+    async def upload_image(self, png):
+        ManyClient.pngs.append(png)
+        return f"uuid-{len(ManyClient.pngs)}"
+
+    async def create_post(self, **kw):
+        ManyClient.sent.update(kw)
+        return {"id": 5150, "published_at": None,
+                "url": "https://civitai.com/posts/5150"}
+
+
+@pytest.fixture
+def many(monkeypatch):
+    ManyClient.pngs = []
+    ManyClient.sent = {}
+    monkeypatch.setattr(civitai, "CivitaiClient", ManyClient)
+    return ManyClient
+
+
+def a_second_image(client, first, seed=7, **kw):
+    """Another finished picture in the same session as `first`."""
+    g = main.store.create_generation(
+        session_id=first.session_id, kind=kw.pop("kind", "final"),
+        model_key=kw.pop("model_key", "bas-anima"), prompt="1girl, a cat, night",
+        negative_prompt="", seed=seed, width=64, height=96, steps=30, cfg=5.0,
+        sampler="Euler a", **kw,
+    )
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 96), (9, 9, 9)).save(buf, format="PNG")
+    main.store.save_image(g, buf.getvalue())
+    main.store.set_status(g.id, "done", None)
+    return main.store.get_generation(g.id)
+
+
+def _chunk(png):
+    return Image.open(io.BytesIO(png)).text["parameters"]
+
+
+def test_several_pictures_go_up_as_one_post_in_the_order_given(client, many):
+    a = a_finished_image(client)
+    b = a_second_image(client, a)
+    body = client.post("/api/publish", json={"ids": [b.id, a.id], "title": " Two "}).json()
+    # one post, both pictures, the first picked is the cover
+    assert many.sent["images"] == [("uuid-1", 64, 96), ("uuid-2", 64, 64)]
+    assert many.sent["title"] == "Two"
+    assert [g["id"] for g in body] == [b.id, a.id]
+    for g in (a, b):
+        row = main.store.get_generation(g.id)
+        assert row.published_post_id == 5150 and row.published_at
+
+
+def test_each_picture_carries_its_own_settings(client, many):
+    a = a_finished_image(client)
+    up = an_upscale_of(client, a, model_key="bas-anima")
+    b = a_second_image(client, a)
+    client.post("/api/publish", json={"ids": [up.id, b.id]})
+    first, second = (_chunk(p) for p in many.pngs)
+    # the upscale publishes the final it enlarged, at its own size
+    assert "Seed: 42" in first and "Steps: 28" in first and "Size: 128x128" in first
+    assert first.startswith("1girl, a park")
+    assert "Seed: 7" in second and "Steps: 30" in second and "Size: 64x96" in second
+    assert second.startswith("1girl, a cat, night")
+
+
+def test_a_simple_post_of_several_carries_no_prompt_on_any(client, many):
+    a = a_finished_image(client)
+    b = a_second_image(client, a)
+    client.post("/api/publish", json={"ids": [a.id, b.id], "simple": True})
+    for png in many.pngs:
+        text = _chunk(png)
+        assert text.startswith("Steps: ")
+        assert "1girl" not in text and "Negative prompt" not in text
+
+
+def test_one_draft_among_them_refuses_the_post_before_anything_is_sent(client, many):
+    a = a_finished_image(client)
+    d = a_second_image(client, a, kind="draft")
+    resp = client.post("/api/publish", json={"ids": [a.id, d.id]})
+    assert resp.status_code == 400 and "draft" in resp.json()["detail"].lower()
+    assert many.pngs == [] and many.sent == {}
+    assert main.store.get_generation(a.id).published_at is None
+
+
+def test_an_unfinished_one_among_them_refuses_the_post_too(client, many):
+    a = a_finished_image(client)
+    pending = main.store.create_generation(
+        session_id=a.session_id, kind="final", model_key="bas-anima", prompt="p",
+        negative_prompt="", seed=1, width=64, height=64, steps=28, cfg=5.5,
+        sampler="Euler a",
+    )
+    resp = client.post("/api/publish", json={"ids": [a.id, pending.id]})
+    assert resp.status_code == 400
+    assert many.pngs == []
+
+
+def test_a_failure_at_civitai_leaves_every_row_unpublished(client, monkeypatch):
+    a = a_finished_image(client)
+    b = a_second_image(client, a)
+
+    class Failing(ManyClient):
+        async def create_post(self, **kw):
+            raise civitai.CivitaiError("account is muted")
+
+    ManyClient.pngs = []
+    monkeypatch.setattr(civitai, "CivitaiClient", Failing)
+    resp = client.post("/api/publish", json={"ids": [a.id, b.id]})
+    assert resp.status_code == 400 and "muted" in resp.json()["detail"]
+    assert all(main.store.get_generation(g.id).published_at is None for g in (a, b))
+
+
+def test_a_picture_named_twice_is_posted_once(client, many):
+    a = a_finished_image(client)
+    b = a_second_image(client, a)
+    client.post("/api/publish", json={"ids": [a.id, b.id, a.id]})
+    assert len(many.sent["images"]) == 2
+
+
+def test_more_than_ten_pictures_is_refused(client, many):
+    a = a_finished_image(client)
+    resp = client.post("/api/publish", json={"ids": [a.id] * 11})
+    assert resp.status_code == 422
+
+
+def test_a_post_of_several_is_always_a_draft_too(client, many):
+    a = a_finished_image(client)
+    b = a_second_image(client, a)
+    client.post("/api/publish", json={"ids": [a.id, b.id], "publish": True})
+    assert "publish" not in many.sent
+
+
+def test_the_post_credits_the_first_picture_that_can_credit_anything(client, many, monkeypatch):
+    a = a_finished_image(client, model_key="krea2-turbo")
+    b = a_second_image(client, a)
+    monkeypatch.setattr(main.registry.models["krea2-turbo"], "civitai_version_id", None)
+    client.post("/api/publish", json={"ids": [a.id, b.id]})
+    assert many.sent["model_version_id"] == main.registry.models["bas-anima"].civitai_version_id
+
+
+def test_the_defaults_for_several_merge_their_tags_and_show_each_ones_chunk(client, many):
+    a = a_finished_image(client)
+    b = a_second_image(client, a, model_key="krea2-turbo")
+    resp = client.get("/api/publish-defaults", params=[("ids", a.id), ("ids", b.id)])
+    body = resp.json()
+    assert body["title"] == "A cat"     # the session's own words, as for one
+    labels = [main.registry.models[k].label for k in ("bas-anima", "krea2-turbo")]
+    assert body["detail"] == f"{labels[0]} and {labels[1]}, rendered locally in Draw Things."
+    assert "1girl" in body["tags"]
+    assert [i["id"] for i in body["images"]] == [a.id, b.id]
+    assert "Seed: 42" in body["images"][0]["settings"]
+    assert body["images"][1]["parameters"].startswith("1girl, a cat, night")
+    # and the preview is the very chunk that goes up
+    client.post("/api/publish", json={"ids": [a.id, b.id]})
+    assert [_chunk(p) for p in many.pngs] == [i["parameters"] for i in body["images"]]
+
+
+def test_the_defaults_for_several_refuse_a_draft(client):
+    a = a_finished_image(client)
+    d = a_second_image(client, a, kind="draft")
+    resp = client.get("/api/publish-defaults", params=[("ids", a.id), ("ids", d.id)])
+    assert resp.status_code == 400

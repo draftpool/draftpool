@@ -462,6 +462,43 @@ def suggest_detail(gen, source, spec) -> str:
     return text + "."
 
 
+def suggest_detail_many(labels: Sequence[str]) -> str:
+    """The description of a post of several pictures: what rendered them.
+
+    `suggest_detail` without the sizes -- the pictures in one post routinely
+    differ in size and in whether they were upscaled, and a sentence listing
+    each is the settings dump that line exists to avoid. Each picture carries
+    its own size in its own metadata. Each model is named once, in the order
+    the pictures are.
+    """
+    names = list(dict.fromkeys(l for l in labels if l))
+    if not names:
+        return PROVENANCE
+    joined = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    return f"{joined}, rendered locally in Draw Things."
+
+
+def merge_tags(per_image: Sequence[Sequence[str]], limit: int = 5) -> list[str]:
+    """One post's tags from each picture's own suggestions.
+
+    A tag that more of the pictures share ranks higher -- a post is browsed
+    under what it is mostly of, not under what one picture in it has -- and
+    ties keep the order `suggest_tags` gave them, which is already broadest
+    first. `anime` keeps its place at the front when any picture put it there,
+    since it was put there for the checkpoint, not for the prompt.
+    """
+    count: dict[str, int] = {}
+    first: dict[str, tuple[int, int]] = {}
+    for i, tags in enumerate(per_image):
+        for j, tag in enumerate(dict.fromkeys(tags)):
+            count[tag] = count.get(tag, 0) + 1
+            first.setdefault(tag, (j, i))
+    ranked = sorted(count, key=lambda t: (-count[t], first[t]))
+    if "anime" in count:
+        ranked = ["anime"] + [t for t in ranked if t != "anime"]
+    return ranked[:limit]
+
+
 class CivitaiError(RuntimeError):
     """A publish that did not happen, with the reason in the message."""
 
@@ -576,15 +613,19 @@ class CivitaiClient:
     async def create_post(
         self,
         *,
-        uuid: str,
-        width: int,
-        height: int,
+        images: Sequence[tuple[str, int, int]],
         title: str = "",
         detail: str = "",
         tags: Optional[list[str]] = None,
         model_version_id: Optional[int] = None,
     ) -> dict:
         """Create the post as a draft. Returns {"id", "published_at", "url"}.
+
+        `images` are (uuid, width, height) from `upload_image`, in the order
+        the post shows them: the first is its cover. One picture and several
+        are the same call -- Civitai attaches them all in one atomic step and
+        cleans up after itself if any of it fails, so a post never goes up
+        with some of its pictures missing.
 
         `create_post` can publish in the same call and this deliberately does
         not use it. Publishing a draft is one click on the post page you are
@@ -597,7 +638,10 @@ class CivitaiClient:
         the timestamp stored here is our own and not Civitai's.
         """
         args: dict = {
-            "images": [{"uuid": uuid, "width": width, "height": height, "type": "image"}],
+            "images": [
+                {"uuid": uuid, "width": width, "height": height, "type": "image"}
+                for uuid, width, height in images
+            ],
             "publish": False,
         }
         if title:
