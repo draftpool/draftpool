@@ -910,6 +910,102 @@ models:
           final: { steps: 4, cfg: 1.0 }
           upscale: { steps: 4, cfg: 1.0 }
 
+  qwen-image-21-turbo:
+    label: "Qwen Image 2.1 Turbo"
+    dt_filename: "qwen_image_2.1_turbo_i8x.ckpt"
+    # Qwen Image 2.1, civitai.com/models/2954443 (CivitaiOfficial), version
+    # "v2.1 Turbo" -- qwen_image_2.1_turbo_bf16.safetensors, the build Draw
+    # Things converts; not "v2.1" beside it, the undistilled base.
+    civitai_version_id: 3400828
+    # Not a newer qwen-image: a 7B generator on its own architecture (Draw
+    # Things records version qwen_image_2.1, its own VAE and a Qwen3-VL 8B
+    # text encoder), distilled to 8 steps. Shipped beside 2512 rather than
+    # in its place, so either can be picked. On the same prompts and seeds
+    # at 1024 it rendered in ~40s against 2512's ~170s, with natural skin
+    # where 2512 came out over-processed, and the quoted sign text right in
+    # every frame (research/qwen21-vs-2512/).
+    #
+    # Draw Things' recommendation, DDIM Trailing at 8 steps, CFG 1 (and
+    # shift 6.5, which this client cannot send for stills; see
+    # dt_client._build_payload). 4 steps leaves a crosshatch over the
+    # trees that 8 does not.
+    sampler: "DDIM Trailing"
+    cfg: 1.0
+    uses_negative_prompt: false
+    prompt_style: prose
+    prompt_guidance: |
+      Write natural, descriptive prose of 30-90 words: subject and appearance,
+      action, environment, lighting, camera and composition, style and mood.
+      Full sentences work well; front-load the subject. State the desired
+      qualities positively. Text that should appear in the image goes in
+      double quotes. No tag lists, no weighting syntax.
+    # Measured (add_model.py): the subject holds 33-42% of frame height to
+    # 410 characters and falls to ~17-22% from 622; the balloon marker is
+    # still on the frame at 821.
+    prompt_budget: { full: 400, fading: 800 }
+    # The final size, nothing given up: the widest shapes at a 1536 budget,
+    # 2048x1152 and 1152x2048, drew one figure at seeds 1111 and 2222
+    # (research/qwen21-final-1536/), as every ratio at a 1024 budget did
+    # (research/aspect/qwen-image-21-turbo).
+    aspect_size: 1536
+    # 1024, because over anything smaller the Faithful comes back soft:
+    # Laplacian variance 38-250 over 512 and 768 drafts against 410-575 over
+    # 1024 at a 1024 final, both scenes, both seeds -- at 1:1 the 768 one is
+    # smooth-skinned where the 1024 one has pores and stray hairs
+    # (research/draft-size/qwen-image-21-turbo). The 768 draft itself also
+    # carries a faint lattice on fine texture. ~46s against ~30s.
+    draft: { size: 1024, steps: 8 }
+    # 1536, Draw Things' own size, and not 1024: at 1024 the final had nothing
+    # to add -- a Finalize of a 1024/8 draft came back pixel-identical to it,
+    # and a Faithful over it (16 steps at 0.5 on a finished picture)
+    # overcooked it: harsher contrast, crunchy skin, a grungy background. At
+    # 1536 a Finalize is a new, sharper picture from the same seed (~108s,
+    # Laplacian 355-466), and the Faithful keeps the draft's picture enlarged
+    # without overcooking it (~75s, 88-170) (research/qwen21-final-1536/).
+    final: { size: 1536, steps: 8, strength: 0.5 }
+    upscale: { size: 2048, steps: 4, strength: 0.3 }
+    # Untiled 2048 comes back at 0.985 correlation with its source (tiled
+    # 0.986, slower), so no tiling.
+    upscale_seconds: 80
+    # nothing above 2048 was measured; this is a floor, not a ceiling
+    max_upscale_size: 2048
+
+  # The same file as qwen-image-21-turbo, as an instruction editor: Qwen Image
+  # 2.1 is one checkpoint for generating and editing (Draw Things gives it the
+  # kontext modifier), so an edit is the img2img request at strength 1.0 that
+  # qwen-edit gets. A second entry rather than a flag on the generator,
+  # because every path that takes an editor -- the Edit dialog's picker,
+  # Combine, the upscale and publish chains that skip back to the drawing
+  # checkpoint -- keys on edit_only. Listed BEFORE qwen-edit: the first
+  # editor is the default, in the Edit dialog and in Combine (the page's
+  # INSTRUCT_MODEL, and /api/combine without a model), and this one is the
+  # faster of the two at about two-thirds of 2511-with-Lightning's time.
+  #
+  # Measured on research/lightning-edit/'s café scene and seed, through the
+  # shipped guards and functions (research/qwen21-edit/): 61-73s an edit
+  # against 88-110s for 2511 with Lightning, and the replacement put the
+  # barrel in the pot's place where Lightning sets it down in front -- but it
+  # took the neighbouring plant too, the rectangle cat came back a grey tabby
+  # when asked for ginger, and the rest of the frame drifts a little more on
+  # a colour change or an addition (7.0 / 6.6 against 5.3 / 5.2). One seed
+  # per cell.
+  qwen-edit-21-turbo:
+    label: "Qwen Image 2.1 Turbo (instruct)"
+    dt_filename: "qwen_image_2.1_turbo_i8x.ckpt"
+    civitai_version_id: 3400828
+    sampler: "DDIM Trailing"
+    cfg: 1.0
+    uses_negative_prompt: false
+    prompt_style: prose
+    edit_only: true
+    # qwen-edit's default, and for its reason: an edit instruction is short
+    prompt_budget: { full: 240, fading: 600 }
+    draft: { size: 1024, steps: 8 }
+    final: { size: 1024, steps: 8, strength: 1.0 }
+    # the generator's; an editor never upscales its own output
+    # (Registry.upscale_candidates), the drawing checkpoint does
+    upscale: { size: 2048, steps: 4, strength: 0.3 }
+
   qwen-edit:
     label: "Qwen Edit 2511 (instruct)"
     dt_filename: "qwen_image_edit_2511_i8x.ckpt"
@@ -937,8 +1033,11 @@ models:
     # scale it to how much has to be painted from nothing: 8 for colour
     # changes only, 16 to remove or replace something, 24+ to add a new
     # highly detailed object. Under-stepping comes out washed out and soft.
-    # Every instruction edit goes through this stage -- Instruct, a rectangle
-    # addition, Combine -- and all three dialogs seed their steps from it.
+    # Every instruction edit made with this editor goes through this stage --
+    # Instruct, a rectangle addition, Combine -- and all three dialogs seed
+    # their steps from it. qwen-edit-21-turbo, above, is the default editor;
+    # this one is picked in the Edit dialog, or takes over when that is not
+    # installed.
     # NOT MEASURED, and the probe would not describe it: this is an instruction
     # editor, so its prompt is a short edit instruction against an existing
     # image ("make the sky overcast"), not a scene description. Its prompts sit

@@ -26,6 +26,9 @@ That is a tidying of the UI and nothing more: the API still renders any model
 asked for by key, so an old card's Upscale, Refine and Retry keep working after
 its model is hidden. Storing the *disabled* keys rather than the enabled ones
 is what makes a model added by a later release show up on its own.
+
+And the Ollama model picked in the page's LLM dropdown, over the `llm.model`
+models.yaml ships.
 """
 
 from __future__ import annotations
@@ -173,6 +176,22 @@ class SettingsStore:
         """Drop every step override; every model goes back to what it ships."""
         data = self._read()
         data.pop("steps", None)
+        self._write(data)
+
+    def llm_model(self) -> str | None:
+        """The Ollama model last picked in the page's LLM dropdown, if any.
+
+        Kept here because the pick used to live only in the server process: a
+        restart went back to config/models.yaml's `llm.model`, while a page
+        left open still showed the old pick -- so the dropdown named one model
+        and every LLM request sent another.
+        """
+        raw = self._read().get("llm_model")
+        return raw.strip() if isinstance(raw, str) and raw.strip() else None
+
+    def set_llm_model(self, name: str) -> None:
+        data = self._read()
+        data["llm_model"] = name
         self._write(data)
 
     def lora_choices(self) -> dict[str, dict[str, bool]]:

@@ -40,9 +40,16 @@ space for two copies, so leave some room to spare.
 ## The models
 
 **From Draw Things' catalogue**: FLUX.3 klein, FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo,
-Krea 2 Turbo, Juggernaut XL Ragnarok, Qwen Image and Qwen Image Edit. The setup
-script lists them by the names Draw Things' search box finds them under, and
-they need no Civitai account.
+Krea 2 Turbo, Juggernaut XL Ragnarok, Qwen Image 2.1 Turbo, Qwen Image 2512 and
+Qwen Image Edit. The setup script lists them by the names Draw Things' search
+box finds them under, and they need no Civitai account.
+
+**One Qwen for drawing and editing:** Qwen Image 2.1 Turbo makes pictures and
+also edits them by instruction and does Combine. It replaces Qwen Image 2512
+and Qwen Image Edit 2511 for most people: it needs about 15GB of disk where
+those two need about 42GB, and it is faster at both jobs. Qwen Image Edit
+leaves the rest of the picture a little more exactly as it was, if that is
+worth the space to you.
 
 **From Civitai**, the app supports classes of model rather than a list of
 them. Any full checkpoint of these base models works:
@@ -131,12 +138,17 @@ What each can and can't do is in the [guide](GUIDE.md#animate).
       Check this again after restarting the app, as it sometimes turns off.
     - Download models in the model manager. Start with **Z-Image Turbo**
       (~6GB, and the fastest here), then add **FLUX.2 klein 9B** for a second
-      look to compare. Add **Qwen Image Edit 2511** for editing by instruction
-      and Combine, and [MiniMax H3](#minimax-h3) for Animate.
+      look to compare. Add **Qwen Image 2.1 Turbo**, which draws pictures
+      and is also the editor for Edit by instruction and Combine. It does
+      the jobs of both Qwen Image 2512 and Qwen Image Edit 2511, so you need
+      neither (see [the models](#the-models)). Add [MiniMax H3](#minimax-h3)
+      for Animate.
     - **FLUX.1 schnell** works but is mostly redundant with FLUX.2 klein and
       Z-Image Turbo.
     - **Qwen Image 2512** is much slower than the rest (minutes per image).
       Use it for a single image you care about, not for trying things out.
+      **Qwen Image 2.1 Turbo** is a separate, smaller Qwen model at under a
+      minute per image, and the one to get if you get only one.
     - Download an upscaler under **Official Upscalers**: **4x UltraSharp**
       (~34MB). **Upscale** is disabled until one is installed.
     - Import any Illustrious, Anima or SDXL checkpoints you want from

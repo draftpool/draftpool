@@ -37,6 +37,10 @@ def client(monkeypatch):
                         lambda key, state: written.append((key, state)) or f"{key}: tuned.")
     monkeypatch.setattr(main, "_reload_registry", lambda: written.append("reloaded"))
     monkeypatch.setattr(main.registry.models[KEY], "installed", True)
+    # /api/models re-scans Draw Things' folder, which would undo the line above
+    # on a machine without Juggernaut -- this test was passing only where it is
+    # installed
+    monkeypatch.setattr(type(main.registry), "resolve_installed", lambda self: None)
     with TestClient(main.app) as c:
         c.sent, c.written = sent, written
         yield c

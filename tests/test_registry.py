@@ -579,13 +579,18 @@ def _written_for_the_user() -> set[str]:
 
 
 def test_no_two_models_claim_the_same_civitai_version():
-    """A copied entry would credit one checkpoint for another's pictures."""
+    """A copied entry would credit one checkpoint for another's pictures.
+
+    Two entries on the same file are the same checkpoint (Qwen Image 2.1 is a
+    generator and, as a second entry, an instruction editor), so they share
+    its version honestly; the credit list is de-duplicated on publish."""
     reg = load_registry(CONFIG_PATH)
     seen: dict[int, str] = {}
     for key, spec in reg.models.items():
         if spec.civitai_version_id:
-            assert spec.civitai_version_id not in seen, (
-                f"{key} and {seen[spec.civitai_version_id]} share a version id")
+            other = seen.get(spec.civitai_version_id)
+            assert other is None or reg.models[other].dt_filename == spec.dt_filename, (
+                f"{key} and {other} share a version id")
             seen[spec.civitai_version_id] = key
 
 
@@ -705,3 +710,12 @@ def test_a_measurement_renders_the_file_that_is_installed(tmp_path):
     reg = load_for_measuring(cfg, data_dir=data)
     assert reg.models["klein"].dt_filename == "flux_3_klein_i8x.ckpt"
     assert reg.models["mine"].dt_filename == "renamed_upload_f16.ckpt"
+
+
+def test_the_default_instruction_editor_is_qwen_image_21_turbo():
+    """The first editor is the one the Edit dialog and Combine start on (the
+    page's INSTRUCT_MODEL, /api/combine without a model): the faster one, with
+    2511 as the fallback when 2.1 is not installed."""
+    reg = load_registry(CONFIG_PATH)
+    editors = [k for k, m in reg.models.items() if m.edit_only]
+    assert editors[:2] == ["qwen-edit-21-turbo", "qwen-edit"]

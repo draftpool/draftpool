@@ -27,6 +27,8 @@ them (see the [README](../README.md#license)).
   Tongyi-MAI.
 - [Krea 2 Turbo](https://www.krea.ai/models/krea-2-turbo): Krea AI.
 - Juggernaut XL Ragnarok: KandooAI / RunDiffusion.
+- [Qwen-Image-2.1 Turbo](https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo):
+  Alibaba Qwen team.
 - [Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) and
   [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511):
   Alibaba Qwen team. The editor behind Edit and Combine.

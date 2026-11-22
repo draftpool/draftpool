@@ -46,7 +46,7 @@ follow them.
 ## Editing an upscaled image
 
 An edit without a rectangle renders at the edit model's working size, not at
-the size of your image. Editing a 4096px upscale with Qwen Edit gives you back
+the size of your image. Editing a 4096px upscale by instruction gives you back
 roughly 1024px (or the same number of pixels in your image's shape, e.g.
 1344×768 for 16:9). The dialog shows the output size before you start.
 
@@ -58,8 +58,8 @@ Ways around it:
   keeps its full resolution.
 - **Use another take on it and tick "repaint at N×N instead"** to edit at the
   image's full size. Slower, and the dialog shows how much. An edit by
-  instruction doesn't offer it: Qwen Edit at full size would take tens of
-  minutes.
+  instruction doesn't offer it: an instruction editor at full size would take
+  tens of minutes.
 
 Not affected: **Fix faces** works on the faces alone, so the image keeps its
 size. It skips a face that is already large (common on an upscale), because

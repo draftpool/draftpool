@@ -480,11 +480,15 @@ then hides rather than failing on.
      ${B}FLUX.1 [schnell]${N}         ~11GB
      ${B}Krea 2 Turbo${N}             ~13GB
      ${B}Juggernaut XL Ragnarok${N}    ~5GB
+     ${B}Qwen Image 2.1 Turbo${N}     ~15GB  (its own 8GB text encoder included)
      ${B}Qwen Image 2512${N}          ~21GB  (minutes per image)
    Any subset works: every model upscales its own images, so none of
    these is required by another.
 
-3. Edit and Combine: ${B}Qwen Image Edit 2511${N} (~21GB), and its
+3. Edit and Combine: ${B}Qwen Image 2.1 Turbo${N} above is the default editor.
+   Recommended: it draws and edits, so it replaces both Qwen Image 2512
+   and Qwen Image Edit 2511 in ~15GB instead of ~42GB, and is faster.
+   The other editor is ${B}Qwen Image Edit 2511${N} (~21GB), with its
    ${B}Qwen Image Edit 2511 Lightning 4-Step${N} LoRA (~0.8GB), which makes
    every edit about three times faster. Optional: without it edits run
    at 16 steps.

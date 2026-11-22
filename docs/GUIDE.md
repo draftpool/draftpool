@@ -64,7 +64,7 @@ times on a **MacBook Pro M4 Pro with 48GB**:
 | action | typical time | notes |
 |---|---|---|
 | **2x fast** | 4s | the only thing that feels instant |
-| **draft** | 15s–1 min | depends on the model; about 2 min on Qwen Image |
+| **draft** | 15s–1 min | depends on the model; about 2 min on Qwen Image 2512 |
 | **Edit**, rectangle, change something | 30s | only the rectangle is rendered |
 | **Fix faces** | 30s–1 min | |
 | **Edit**, rectangle, add something | 1.5 min | |
@@ -142,7 +142,7 @@ What they cost besides speed:
   disappears for those models.
 - **Anima Turbo changes the look**: darker and warmer, and on some checkpoints
   less bright. Turn it off when you want the model's own colours.
-- **Qwen Image Turbo makes skin look harsher.** For a portrait, turn it off.
+- **Qwen Image 2512's Turbo makes skin look harsher.** For a portrait, turn it off.
 - **Lightning is weak at replacing things** (see
   [Edit](#without-a-rectangle-edit-by-instruction)).
 
@@ -287,11 +287,15 @@ object you mean.
 - **with** picks the model. **Change what's there** and **another take on it**
   can use any installed model, not only the one that made the picture: an
   anime model for a character in a photo, say. Instructions and additions
-  always go to Qwen Edit.
+  go to an instruction editor: **Qwen Image 2.1 Turbo (instruct)** by
+  default, about a minute an edit, or **Qwen Edit**, about a minute and a
+  half with Lightning, which holds the rest of the picture a little more
+  exactly but sets a replacement down in front of the old thing instead of
+  in its place.
 - **steps** starts at the chosen model's own count. Too few leaves the edited
   area soft and washed out. Qwen Edit needs 4 with Lightning and gains nothing
   from more; without it, about 8 for a colour change, 16 to replace something
-  and 24 or more to add something.
+  and 24 or more to add something. Qwen Image 2.1 Turbo runs 8.
 
 More on what edits can and can't do:
 [Deep dive](DEEP-DIVE.md#edit-what-it-can-and-cannot-change).
@@ -314,8 +318,8 @@ second is the **scene**; **⇄** swaps them. Then describe what you want:
   sits on the bench."
 
 The result is a new picture of the scene at just under 1 megapixel, so
-**Upscale** it if you like it. It takes about two minutes and needs the Qwen
-Edit model.
+**Upscale** it if you like it. Combine takes one to two minutes and needs an
+instruction editor: Qwen Image 2.1 Turbo, or Qwen Edit if that isn't installed.
 
 The subject is redrawn, not copied, so small details can change. Mention
 anything that must stay: "keep her closed eyes and the cat on her shoulder".
@@ -375,6 +379,7 @@ background details take over.
 | Juggernaut XL Ragnarok | 600 | 900 |
 | FLUX.2 klein 9B | 450 | 900 |
 | FLUX.3 klein 5.6B | 400 | 800 |
+| Qwen Image 2.1 Turbo | 400 | 800 |
 | Qwen Image 2512 | 400 | 800 |
 | Krea 2 Turbo | 350 | 700 |
 | Z-Image Turbo | 260 | 800 |
@@ -421,10 +426,10 @@ The one-line box under the prompt is for things you want kept *out* of the
 picture. It only appears when a selected model can use one: models running at
 CFG 1 can't.
 
-These models use negative prompts: Juggernaut XL, Qwen Image, and the
+These models use negative prompts: Juggernaut XL, Qwen Image 2512, and the
 Illustrious, Anima and SDXL models, except the few measured checkpoints that
-run at CFG 1. These don't: FLUX.3 klein, FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo and
-Krea 2 Turbo, nor any model while its [speed LoRA](#speed-loras) is on.
+run at CFG 1. These don't: FLUX.3 klein, FLUX.2 klein, FLUX.1 schnell, Z-Image Turbo,
+Qwen Image 2.1 Turbo and Krea 2 Turbo, nor any model while its [speed LoRA](#speed-loras) is on.
 
 If you leave it empty, a sensible default is used. **Anything you type replaces
 the default** rather than adding to it, so include things like "bad hands,
@@ -456,12 +461,15 @@ Enrich continues at V4.
 
 The dropdown in the page picks which Ollama model writes prompts. **gemma3**
 (the default) is more creative and adds more; **qwen3-vl** stays closer to what
-you typed. You can switch at any time.
+you typed. You can switch at any time, and the app remembers your pick when
+it restarts.
 
-Any Ollama model you've installed appears there. Text-only models work for
-Enrich, but anything that looks at an image (**From image…**, **Finalize+**,
-*Improve with LLM*, and Publish's *from image* buttons) needs a vision model.
-The dropdown marks which is which.
+Any Ollama model you've installed appears there. If the one in use isn't
+installed (gemma3 never pulled, say), the app switches to the first installed
+model that can read images. Text-only models work for Enrich, but anything
+that looks at an image (**From image…**, **Finalize+**, *Improve with LLM*,
+and Publish's *from image* buttons) needs a vision model. The dropdown marks
+which is which.
 
 If the LLM fails, you get a message with the reason and a **Retry** button.
 [What the reasons mean](DEEP-DIVE.md#when-the-llm-fails).

@@ -123,7 +123,11 @@ def _reload_registry() -> None:
     registry = _build_registry()
 dt = DrawThingsClient(registry.draw_things.host, registry.draw_things.request_timeout)
 llm = OllamaClient(
-    registry.llm.host, registry.llm.model, registry.llm.temperature,
+    registry.llm.host,
+    # the dropdown's last pick outlives a restart; see _settle_llm for one
+    # that is no longer installed
+    settings_store.llm_model() or registry.llm.model,
+    registry.llm.temperature,
     registry.llm.request_timeout,
 )
 
@@ -986,12 +990,31 @@ async def _require_vision() -> None:
         raise HTTPException(400, VISION_REQUIRED.format(model=llm.model))
 
 
+def _settle_llm(available: list[dict]) -> None:
+    """Make the model in use one that Ollama has, so the dropdown can show it.
+
+    The dropdown lists only installed models. When the one in use is not among
+    them -- models.yaml's default never pulled, or a pick since removed from
+    Ollama -- the browser shows the first option as selected while every
+    request still names the missing model, and fails. So switch to what the
+    page would show, preferring a model that reads images because several
+    flows need one. Not saved: only a pick made in the dropdown is.
+    """
+    names = [m["name"] for m in available]
+    if not names or llm.model in names:
+        return
+    chosen = next((m["name"] for m in available if m["vision"]), names[0])
+    log.warning("LLM %s is not installed in Ollama; using %s", llm.model, chosen)
+    llm.set_model(chosen)
+
+
 @app.get("/api/llms")
 async def list_llms() -> dict:
     try:
         available = await llm.list_models()
     except Exception:
         available = []
+    _settle_llm(available)
     current_vision = next(
         (m["vision"] for m in available if m["name"] == llm.model), None
     )
@@ -1012,6 +1035,7 @@ async def select_llm(body: dict) -> dict:
     # text-only models are allowed here: they only lose the image-reading
     # flows, which say so when used (see _require_vision)
     llm.set_model(name)
+    settings_store.set_llm_model(name)
     log.info("LLM switched to %s (vision=%s)", name, chosen["vision"])
     return {"current": name, "vision": chosen["vision"]}
 
@@ -2339,7 +2363,7 @@ async def combine_pictures(req: CombineRequest) -> Generation:
         spec = next((m for m in registry.models.values()
                      if m.edit_only and m.available and m.shown), None)
         if spec is None:
-            raise HTTPException(400, "Combine needs an instruction editor (Qwen Edit) installed in Draw Things")
+            raise HTTPException(400, "Combine needs an instruction editor (Qwen Image 2.1 Turbo or Qwen Edit) installed in Draw Things")
     if not spec.edit_only:
         raise HTTPException(400, f"{spec.label} is not an instruction editor; Combine needs one")
     try:
